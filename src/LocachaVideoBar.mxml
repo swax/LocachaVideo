@@ -7,6 +7,7 @@
 
 	<fx:Script>
 		<![CDATA[
+			import org.osmf.events.TimeEvent;
 			use namespace mx_internal;
 			
 			import flash.system.*;
@@ -23,11 +24,27 @@
 
 			private var userCams:Object = new Object();
 			
-			
+			private var statusTimer:Timer;
 			
 			protected function application_initialize(event:FlexEvent):void
 			{
+				statusTimer = new Timer(1000);
+				statusTimer.addEventListener(TimerEvent.TIMER, timer_userStatus);
+				statusTimer.start();
+			}
+			
+			private function timer_userStatus(event:TimerEvent):void
+			{
+				var status:String = "my id " + core.nearID.substr(0, 4) + "\n";
 				
+				for each (var user:LocachaUser in core.users)
+				{
+					status += user.farID.substr(0, 4) + " " +
+						      user.connectState + " " +
+							  user.status + "\n";
+				}
+				
+				statusLabel.text = status;
 			}
 			
 			protected function connectLink_click(event:MouseEvent):void
@@ -83,20 +100,24 @@
 			{
 				var popup:TextInputDialog = PopUpManager.createPopUp(this, TextInputDialog, true) as TextInputDialog;
 				
-				popup.setup("Add Peer", "Remote peer id:", addRemotePeer);
+				popup.setup("Add Peer", "Remote peer id:", function(farID:String):void
+				{
+					core.addUser(farID);
+				});
 
 				PopUpManager.centerPopUp(popup);
 			}
 			
 			protected function delPeerLink_click(event:Event):void
 			{
+				var popup:TextInputDialog = PopUpManager.createPopUp(this, TextInputDialog, true) as TextInputDialog;
 				
-			
-			}
-			
-			private function addRemotePeer(farID:String):void
-			{
-				core.addUser(farID);
+				popup.setup("Del Peer", "Remote peer id:", function(farID:String):void
+				{
+					core.delUser(farID);
+				});
+				
+				PopUpManager.centerPopUp(popup);	
 			}
 			
 			public function user_update(user:LocachaUser):void
@@ -109,7 +130,7 @@
 					delete userCams[user.farID];	
 				}
 				// no video box
-				else if(user.videoStream)
+				else if(!userCams[user.farID] && user.videoStream)
 				{
 					// good handle add
 					var display:VideoDisplay = new VideoDisplay();
@@ -144,6 +165,8 @@
 			<mx:LinkButton label="del peer" click="delPeerLink_click(event)" />
 		</mx:VBox>
 		
+		<mx:Label id="statusLabel" width="200" height="120" fontSize="10" />
+
 		<mx:VideoDisplay id="localVideoDisplay" width="160" height="120"  />
 	</s:Group>
 </s:Application>

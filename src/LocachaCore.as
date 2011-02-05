@@ -14,7 +14,7 @@ package
 		public var netConnection:NetConnection;
 		public var listenerStream:NetStream;
 		
-		public var nearID:String;
+		public var nearID:String = "";
 		public var users:Object = new Object();
 		
 
@@ -35,21 +35,31 @@ package
 			managePeers();
 		}
 		
+		public function delUser(farID:String):void
+		{
+			if(!users[farID])
+				return;
+			
+			var user:LocachaUser = new LocachaUser(this, farID);
+			
+			user.disconnect();
+			
+			delete users[farID];
+			
+		    ui.user_update(user);
+		}
+		
+		
 		public function connect():void
 		{
 			netConnection = new NetConnection();
-			netConnection.addEventListener(NetStatusEvent.NET_STATUS, netConnection_statusChange);
+			netConnection.addEventListener(NetStatusEvent.NET_STATUS, stream_statusChange);
 			netConnection.connect(SERVER_ADDRESS + "/" + DEVELOPER_KEY);	
 		}
-		
-		private function netConnection_statusChange(event:NetStatusEvent):void
+
+		private function stream_statusChange(event:NetStatusEvent):void
 		{
-			net_statusChange("netConnection", event);
-		}
-		
-		private function net_statusChange(source:String, event:NetStatusEvent):void
-		{
-			trace(source + " event: " + event.info.code + "\n");
+			trace("Core net event: " + event.info.code);
 			
 			switch (event.info.code)
 			{
@@ -100,6 +110,7 @@ package
 				{
 					if(user.status == UserStatus.HOLDING)
 					{
+						trace("4. requesting video");
 						user.status = UserStatus.REQUESTING;
 						user.streamOut.send("requestVideo");	
 					}
@@ -124,10 +135,11 @@ package
 		
 		public function user_requestVideoResponse(user:LocachaUser, accept:Boolean):void
 		{
-			trace("sending video request response");
 			
 			if(accept)
 			{
+				trace("5. video request accepted");
+
 				user.status = UserStatus.ACTIVE;
 				
 				user.streamOut.send("videoHandleUpdate", videoHandle);
@@ -137,6 +149,7 @@ package
 		private var videoStream:NetStream = null;
 		private var videoHandle:String = null;
 		
+		/// called from ui when cam goes on/off
 		public function updateVideo(camera:Camera):void
 		{
 			// setup the video stream if there's a camera
@@ -144,7 +157,7 @@ package
 			{
 				trace("creating local video stream");
 				videoStream = new NetStream(netConnection, NetStream.DIRECT_CONNECTIONS);
-				videoStream.addEventListener(NetStatusEvent.NET_STATUS, videoStream_statusChange);
+				videoStream.addEventListener(NetStatusEvent.NET_STATUS, stream_statusChange);
 				
 				videoHandle = "videoStream-" + Math.round(Math.random()*1000000).toString();
 				videoStream.publish(videoHandle);
@@ -157,20 +170,15 @@ package
 				trace("closing local video stream");
 				videoHandle = null;
 				
-				videoStream.removeEventListener(NetStatusEvent.NET_STATUS, videoStream_statusChange);
+				videoStream.removeEventListener(NetStatusEvent.NET_STATUS, stream_statusChange);
 				videoStream.close();
 				videoStream = null;
 			}
 			
 			// if users already connected, update them of status, or lack there of
 			for each (var user:LocachaUser in users)
-				user.streamOut.send("videoHandleUpdate", videoHandle);
-		}
-		
-		private function videoStream_statusChange(event:NetStatusEvent):void
-		{
-			net_statusChange("videoStream", event);
-		}
-		
+				if(user.status != UserStatus.HOLDING)
+					user.streamOut.send("videoHandleUpdate", videoHandle);
+		}		
 	}
 }

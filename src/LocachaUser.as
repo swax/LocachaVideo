@@ -29,15 +29,15 @@ package
 			connectState = UserConnectState.CONNECTING;
 			
 			// publish listener
-			trace("starting listen stream");
+			trace("1. starting listen stream");
 			streamOut = new NetStream(core.netConnection, NetStream.DIRECT_CONNECTIONS);
-			streamOut.addEventListener(NetStatusEvent.NET_STATUS, outStream_statusChange);
+			streamOut.addEventListener(NetStatusEvent.NET_STATUS, stream_statusChange);
 			streamOut.publish("streamOut-" + farID);
 			
 			// play remote control stream
-			trace("connecting to remote user");
+			trace("2. connecting to remote user");
 			streamIn = new NetStream(core.netConnection, farID);
-			streamIn.addEventListener(NetStatusEvent.NET_STATUS, inStream_statusChange);
+			streamIn.addEventListener(NetStatusEvent.NET_STATUS, stream_statusChange);
 			streamIn.play("streamOut-" + core.nearID);
 			
 			var self:LocachaUser = this;
@@ -60,15 +60,24 @@ package
 					trace("remote video stream created");
 					// callee subscribes to media, to be able to get the remote user name
 					videoStream = new NetStream(core.netConnection, farID);
-					videoStream.addEventListener(NetStatusEvent.NET_STATUS, 
-						function(event:NetStatusEvent):void{stream_statusChange("videoStream", event);});
+					videoStream.addEventListener(NetStatusEvent.NET_STATUS, stream_statusChange);
 				}
 				
 				if(videoStream && videoHandle != handle)
 				{
 					videoHandle = handle;
-					videoStream.play(handle);
-					videoStream.receiveVideo(true);
+					
+					if(handle)
+					{
+						videoStream.play(handle);
+						videoStream.receiveVideo(true);
+					}
+					else
+					{
+						videoStream.removeEventListener(NetStatusEvent.NET_STATUS, stream_statusChange);
+						videoStream.close()
+						videoStream = null;
+					}
 				}
 
 				core.ui.user_update(self);
@@ -79,36 +88,35 @@ package
 		
 		public function disconnect():void 
 		{
+			trace("disconnecting")
 			connectState = UserConnectState.DISCONNECTED;
 			
 			if(streamOut)
 			{
-				streamOut.removeEventListener(NetStatusEvent.NET_STATUS, outStream_statusChange);
+				streamOut.removeEventListener(NetStatusEvent.NET_STATUS, stream_statusChange);
 				streamOut.close();
 				streamOut = null;
 			}
 			
 			if(streamIn)
 			{
-				streamIn.removeEventListener(NetStatusEvent.NET_STATUS, inStream_statusChange);
+				streamIn.removeEventListener(NetStatusEvent.NET_STATUS, stream_statusChange);
 				streamIn.close();
 				streamIn = null;
 			}
+
+			if(videoStream)
+			{
+				videoHandle = null
+				videoStream.removeEventListener(NetStatusEvent.NET_STATUS, stream_statusChange);
+				videoStream.close();
+				videoStream = null;
+			}
 		}
 		
-		private function inStream_statusChange(event:NetStatusEvent):void
-		{
-			stream_statusChange("inStream", event);
-		}
-		
-		private function outStream_statusChange(event:NetStatusEvent):void
-		{
-			stream_statusChange("outStream", event);
-		}
-		
-		private function stream_statusChange(source:String, event:NetStatusEvent):void
-		{
-			trace("User " + source + ": " + event.info.code);
+		private function stream_statusChange(event:NetStatusEvent):void
+		{	
+			trace("User stream event " + event.info.code);
 			
 			switch (event.info.code)
 			{
@@ -125,16 +133,22 @@ package
 					// remote peer connected
 					// we can't play stream unless remote side has published a stream
 					// specifically for us, so if we can play, their connected as well
-					if(source == "inStream")
+					if(event.target == streamIn)
 					{
+						trace("3. connected")
 						connectState = UserConnectState.CONNECTED;
 						core.user_connected(this);
 					}
 					break;
 				
 				case "NetStream.Play.UnpublishNotify":
-					if(source == "inStream")
+					if(event.target == streamIn)
 						disconnect();
+					
+					//else if(event.target == videoStream)
+						// remote video closed, update the handle
+					//	videoStream.client.videoHandleUpdate(null);
+					
 					break;
 			}
 		}
