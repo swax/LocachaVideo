@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:TitleWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
+			   xmlns:s="library://ns.adobe.com/flex/spark" 
+			   xmlns:mx="library://ns.adobe.com/flex/mx" 
+			   xmlns:my="*"
+				title="Input text"
+				width="250"
+				height="150"
+				close="popup_close(event);">
+	
+	<fx:Script>
+		<![CDATA[
+			import mx.events.*;
+			import mx.managers.*;
+			
+			public var resultText:String = "";
+			private var closeEvent:Function;
+			
+			private function popup_close(evt:CloseEvent):void {
+				PopUpManager.removePopUp(this);
+			}
+			
+			public function setup(titleText:String, inputDescriptionText:String, onClose:Function):void {
+				
+				this.title = titleText;
+				inputDescription.text = inputDescriptionText;
+				closeEvent = onClose;
+			}
+
+			protected function okButton_click(event:MouseEvent):void
+			{
+				PopUpManager.removePopUp(this);
+				
+				if(closeEvent != null)
+					closeEvent(inputTextbox.text);
+			}
+
+		]]>
+	</fx:Script>
+	<s:Label x="6" y="10" text="Enter some text" height="14" id="inputDescription"/>
+	<s:TextInput x="10" y="32" width="227" id="inputTextbox"/>
+	<s:Button x="168" y="62" label="OK" id="okButton" click="okButton_click(event)"/>
+</s:TitleWindow>
