@@ -1,8 +1,12 @@
 package
 {
 	import flash.events.*;
+	import flash.external.*;
 	import flash.media.*;
 	import flash.net.*;
+	import flash.utils.*;
+	
+	import mx.core.mx_internal;
 
 	
 	public class LocachaCore
@@ -10,53 +14,112 @@ package
 		public const SERVER_ADDRESS:String = "rtmfp://p2p.rtmfp.net";
 		public const DEVELOPER_KEY:String = "71513203c7af510770d7d3a4-fd8e748c788e";
 		
-		public var ui:Object;
-		public var netConnection:NetConnection;
-		public var listenerStream:NetStream;
+		public var ui:LocachaVideoBar;
 		
+		public var netConnection:NetConnection;
+		public var videoStream:NetStream;
+		public var currentCamera:Camera;
+		
+		public var localUserID:String;
 		public var nearID:String = "";
+		public var groupID:String = "";
+		
 		public var users:Object = new Object();
 		
-
-		public function LocachaCore(uiHandle:Object)
+		private var statusTimer:Timer;
+		
+		
+		public function LocachaCore(uiHandle:LocachaVideoBar)
 		{
 			ui = uiHandle;
+
+			if (ExternalInterface.available)
+			{
+				ExternalInterface.addCallback("setLocalUser", setLocalUser);  
+				ExternalInterface.addCallback("addUser", addUser);  
+				ExternalInterface.addCallback("delUser", delUser);  
+				
+				ExternalInterface.call("flash_coreInit");
+			}
+			
+			statusTimer = new Timer(1000);
+			statusTimer.addEventListener(TimerEvent.TIMER, timer_userStatus);
+			statusTimer.start();
+			
 		}	
 		
-		public function addUser(farID:String):void
+		public function setLocalUser(localUserID:String):void
+		{	
+			this.localUserID = localUserID;
+		}
+		
+		public function addUser(userID:String, groupID:String, distance:int):void
 		{
-			if(users[farID])
-				return;
+			var user:LocachaUser = null;
 			
-			var user:LocachaUser = new LocachaUser(this, farID);
+			if(!users[userID])
+				user = new LocachaUser(this, userID);
+			else
+				user = users[userID];
 			
-			users[farID] = user;
+			user.update(groupID, distance);
+			
+			users[userID] = user;
+			
+			if(user.connectState == UserConnectState.DISCONNECTED)
+				user.connectState = UserConnectState.HOLDING;
 			
 			managePeers();
 		}
 		
-		public function delUser(farID:String):void
+		public function delUser(userID:String):void
 		{
-			if(!users[farID])
+			if(!users[userID])
 				return;
 			
-			var user:LocachaUser = new LocachaUser(this, farID);
+			var user:LocachaUser = users[userID];
 			
 			user.disconnect();
 			
-			delete users[farID];
+			delete users[userID];
 			
 		    ui.user_update(user);
 		}
 		
-		
 		public function connect():void
 		{
+			if(netConnection)
+				return;
+			
 			netConnection = new NetConnection();
 			netConnection.addEventListener(NetStatusEvent.NET_STATUS, stream_statusChange);
 			netConnection.connect(SERVER_ADDRESS + "/" + DEVELOPER_KEY);	
 		}
 
+		public function dispose():void
+		{
+			trace("disposing core");
+			
+			if(videoStream)
+			{
+				videoStream.removeEventListener(NetStatusEvent.NET_STATUS, stream_statusChange);
+				videoStream.close();
+				videoStream = null;
+			}
+			
+			for each (var user:LocachaUser in users)
+				user.disconnect();
+			users = new Object();
+			
+			if(netConnection)
+			{
+				netConnection.removeEventListener(NetStatusEvent.NET_STATUS, stream_statusChange);
+				netConnection.close();
+				netConnection = null;
+			}
+		}
+		
+		
 		private function stream_statusChange(event:NetStatusEvent):void
 		{
 			trace("Core net event: " + event.info.code);
@@ -64,121 +127,110 @@ package
 			switch (event.info.code)
 			{
 				case "NetConnection.Connect.Success":
-					//connectSuccess();
-					ui.core_connected();
-					nearID = netConnection.nearID;
 					break;
 				
 				case "NetConnection.Connect.Closed":
-					//loginState = LoginNotConnected;
-					//callState = CallNotReady;
-					ui.core_disconnected();
 					break;
 				
 				case "NetConnection.Connect.Failed":
-					//status("Unable to connect to " + connectUrl + "\n");
-					//loginState = LoginNotConnected;
-					ui.core_disconnected();
 					break;
 				
 				case "NetStream.Connect.Success":
+
 					// we get this when other party connects to our control stream our outgoing stream
 					//status("Connection from: " + event.info.stream.farID + "\n");
+					if(event.info.stream == videoStream)
+					{
+						videoStream.publish("videoStream-" + localUserID);
+						
+						videoStream.attachCamera(currentCamera);
+					}
+					else
+					{
+						for each (var user:LocachaUser in users)
+							if(event.info.stream == user.videoStream)
+								user.stream_statusChange(event);
+					}
+					break;
+				
+				case "NetStream.Publish.Start":
+					if(event.target == videoStream)
+					{
+						if (ExternalInterface.available) 
+							ExternalInterface.call("flash_videoStart", groupID);
+	
+					}
 					break;
 				
 				case "NetStream.Connect.Closed":
-					//onHangup();
 					break;
 			}
 		}
 		
-		public function user_connected(user:LocachaUser):void
-		{
-			managePeers();
-		}
-	
 		// determines who to connect to and what to do next
 		private function managePeers() : void
 		{
 			for each (var user:LocachaUser in users)
 			{
-				if(user.connectState == UserConnectState.DISCONNECTED)
-				{
+				if(user.connectState == UserConnectState.HOLDING)
 					user.connect();		
-				}
-				else if(user.connectState == UserConnectState.CONNECTED)
-				{
-					if(user.status == UserStatus.HOLDING)
-					{
-						trace("4. requesting video");
-						user.status = UserStatus.REQUESTING;
-						user.streamOut.send("requestVideo");	
-					}
-				}
 			}
 		}
-		
-		public function user_requestVideo(user:LocachaUser):void
-		{
-			trace("user requesting video");
-			
-			// see if we want to accept request
-			var accept:Boolean = true;
-			
-			user.status = UserStatus.ACTIVE;
-			// send handle to our video stream
-			
-			user.streamOut.send("requestVideoResponse", accept);
-			
-			user.streamOut.send("videoHandleUpdate", videoHandle);
-		}
-		
-		public function user_requestVideoResponse(user:LocachaUser, accept:Boolean):void
-		{
-			
-			if(accept)
-			{
-				trace("5. video request accepted");
-
-				user.status = UserStatus.ACTIVE;
-				
-				user.streamOut.send("videoHandleUpdate", videoHandle);
-			}
-		}
-		
-		private var videoStream:NetStream = null;
-		private var videoHandle:String = null;
 		
 		/// called from ui when cam goes on/off
 		public function updateVideo(camera:Camera):void
 		{
-			// setup the video stream if there's a camera
-			if(camera && !videoStream && netConnection.connected)
-			{
-				trace("creating local video stream");
-				videoStream = new NetStream(netConnection, NetStream.DIRECT_CONNECTIONS);
-				videoStream.addEventListener(NetStatusEvent.NET_STATUS, stream_statusChange);
-				
-				videoHandle = "videoStream-" + Math.round(Math.random()*1000000).toString();
-				videoStream.publish(videoHandle);
-				videoStream.attachCamera(camera);
-			}
+			currentCamera = camera;
 			
+			// setup the video stream if there's a camera
+			if(camera && netConnection.connected)
+			{
+				if(!videoStream)
+				{
+					trace("publishing video stream");
+					groupID = "videoGroup-" + Math.round(Math.random()*1000000).toString();
+					var spec:GroupSpecifier = new GroupSpecifier(groupID);
+					spec.serverChannelEnabled = true; 
+					spec.multicastEnabled = true;
+
+					var auth:String = spec.groupspecWithoutAuthorizations();
+					videoStream = new NetStream(netConnection, auth);
+					videoStream.addEventListener(NetStatusEvent.NET_STATUS, stream_statusChange);
+				}
+				else
+				{
+					videoStream.attachCamera(camera);
+				}
+			}
+
 			// close the video stream if no camera
 			if(!camera && videoStream)
 			{
 				trace("closing local video stream");
-				videoHandle = null;
-				
+
 				videoStream.removeEventListener(NetStatusEvent.NET_STATUS, stream_statusChange);
 				videoStream.close();
 				videoStream = null;
 			}
+		}
+		
+		private function timer_userStatus(event:TimerEvent):void
+		{
+			var status:String = "my id: " + this.localUserID + "<br />";
 			
-			// if users already connected, update them of status, or lack there of
+			if(netConnection && netConnection.connected)
+				status += "net: connected<br />";	
+			else
+				status += "net: disconnected<br />";
+			
 			for each (var user:LocachaUser in users)
-				if(user.status != UserStatus.HOLDING)
-					user.streamOut.send("videoHandleUpdate", videoHandle);
-		}		
+			{
+				status += "remote " + user.userID.substr(0, 4) + ": " +
+					user.connectState + "<br />";
+			}
+			
+			if (ExternalInterface.available)
+				ExternalInterface.call("flash_debugStatus", status);
+		}
 	}
 }

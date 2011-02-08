@@ -7,10 +7,14 @@ import spark.layouts.supportClasses.LayoutBase;
 
 public class FlowLayout extends LayoutBase
 {
+	public var internalHeight:Number = 0;
+	
     override public function updateDisplayList(containerWidth:Number,
                                          containerHeight:Number):void
     {
-        // The position for the current element
+		internalHeight = 0;
+        
+		// The position for the current element
         var x:Number = 0;
         var y:Number = 0;
 
@@ -42,7 +46,7 @@ public class FlowLayout extends LayoutBase
 
                 // Move down by elementHeight, we're assuming all 
                 // elements are of equal height
-                y += elementHeight;
+                y += elementHeight + 10;
             }
 
             // Position the element
@@ -50,6 +54,9 @@ public class FlowLayout extends LayoutBase
 
             // Update the current position, add a gap of 10
             x += elementWidth + 10;
+			
+			if(y + elementHeight > internalHeight)
+				internalHeight = y + elementHeight;
         }
     }
 }

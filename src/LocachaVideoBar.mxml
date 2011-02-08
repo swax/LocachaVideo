@@ -3,7 +3,8 @@
 			   xmlns:s="library://ns.adobe.com/flex/spark" 
 			   xmlns:mx="library://ns.adobe.com/flex/mx" 
 			   xmlns:my="*"
-			   minWidth="300" minHeight="100" initialize="application_initialize(event)">
+			   height = "150" width="100%"
+			   minWidth="300" minHeight="100" initialize="application_initialize(event)" backgroundColor="#293134">
 
 	<fx:Script>
 		<![CDATA[
@@ -16,124 +17,53 @@
 			import mx.core.mx_internal;
 			import mx.events.*;
 			import mx.managers.*;
+
 			
-			
-			private var core:LocachaCore = new LocachaCore(this);
+			private var core:LocachaCore;
 			
 			private var camera:Camera = null;
-
+			private var localDisplay:UserDisplay;
+			private var startVideoButton:Button;
+			
 			private var userCams:Object = new Object();
 			
-			private var statusTimer:Timer;
 			
 			protected function application_initialize(event:FlexEvent):void
 			{
-				statusTimer = new Timer(1000);
-				statusTimer.addEventListener(TimerEvent.TIMER, timer_userStatus);
-				statusTimer.start();
-			}
-			
-			private function timer_userStatus(event:TimerEvent):void
-			{
-				var status:String = "my id " + core.nearID.substr(0, 4) + "\n";
+				core = new LocachaCore(this);
 				
-				for each (var user:LocachaUser in core.users)
-				{
-					status += user.farID.substr(0, 4) + " " +
-						      user.connectState + " " +
-							  user.status + "\n";
-				}
-				
-				statusLabel.text = status;
-			}
-			
-			protected function connectLink_click(event:MouseEvent):void
-			{
-				connectLink.label = "connecting...";
 				core.connect();
-			}
-			
-			public function core_connected():void {
-				connectLink.label = "connected";	
 				
-				core.updateVideo(camera);
+				showStartVideoButton();
+				
+				if (ExternalInterface.available)
+					ExternalInterface.addCallback("getRightHeight", getRightHeight);  
 			}
 			
-			public function core_disconnected():void {
-				connectLink.label = "disconnected";	
-			}
-			
-			protected function copyIdLink_click(event:MouseEvent):void
+			public function getRightHeight():Number
 			{
-				var nearID:String = core.netConnection.nearID;
-				System.setClipboard(nearID);
-				Alert.show("copied: " + nearID);
+				var rightHeight:Number = 40;
+				
+				if(mainLayout.visible)
+					rightHeight += (mainLayout.layout as FlowLayout).internalHeight;
+		
+				return rightHeight;
 			}
 
-			protected function sendVideoCheckbox_change(event:Event):void
-			{
-				if(sendVideoCheckbox.selected)
-				{
-					camera = Camera.getCamera();
-					
-					if(camera)
-					{
-						camera.setMode(160, 120, 15);
-						localVideoDisplay.attachCamera(camera);
-					}
-					else
-						Alert.show("no camera found :(");
-					
-					core.updateVideo(camera);
-				}
-				else
-				{
-					camera = null;
-					localVideoDisplay.attachCamera(null);
-					//localVideoDisplay.videoPlayer.clear();
-					
-					core.updateVideo(null);
-				}
-			}
-			
-			protected function addPeerLink_click(event:Event):void
-			{
-				var popup:TextInputDialog = PopUpManager.createPopUp(this, TextInputDialog, true) as TextInputDialog;
-				
-				popup.setup("Add Peer", "Remote peer id:", function(farID:String):void
-				{
-					core.addUser(farID);
-				});
-
-				PopUpManager.centerPopUp(popup);
-			}
-			
-			protected function delPeerLink_click(event:Event):void
-			{
-				var popup:TextInputDialog = PopUpManager.createPopUp(this, TextInputDialog, true) as TextInputDialog;
-				
-				popup.setup("Del Peer", "Remote peer id:", function(farID:String):void
-				{
-					core.delUser(farID);
-				});
-				
-				PopUpManager.centerPopUp(popup);	
-			}
-			
 			public function user_update(user:LocachaUser):void
 			{
 				// if user has a display box, update the stream
-				if(userCams[user.farID] && !user.videoStream)
+				if(userCams[user.userID] && !user.videoStream)
 				{
-					mainLayout.removeElement(userCams[user.farID]);
+					mainLayout.removeElement(userCams[user.userID]);
 					
-					delete userCams[user.farID];	
+					delete userCams[user.userID];	
 				}
 				// no video box
-				else if(!userCams[user.farID] && user.videoStream)
+				else if(!userCams[user.userID] && user.videoStream)
 				{
 					// good handle add
-					var display:VideoDisplay = new VideoDisplay();
+					var display:UserDisplay = new UserDisplay();
 					
 					mainLayout.addElement(display);
 					
@@ -141,32 +71,120 @@
 					video.width = 160;
 					video.height = 120;
 					video.attachNetStream(user.videoStream);
-					display.addChild(video);
+					display.video.addChild(video);
+
+					display.addEventListener(MouseEvent.CLICK, userDisplay_click);
 					
-					userCams[user.farID] = display;
+					userCams[user.userID] = display;
+				}
+			}
+			
+			protected function toggleVideoChat_click(event:Event):void
+			{
+				if(!core.netConnection)
+				{
+					core.connect();
+					mainLayout.visible = true;
+					toggleVideoChat.label = "turn video chat off";
+				}
+				else
+				{
+					stopLocalVideo();
+					core.dispose();
+					mainLayout.visible = false;
+					toggleVideoChat.label = "turn video chat on";
 				}
 			}
 
+			private function showStartVideoButton():void
+			{
+				startVideoButton = new Button();
+				startVideoButton.label="start my video";
+				startVideoButton.labelPlacement = "center";
+				startVideoButton.width = 160;
+				startVideoButton.height = 120;
+				startVideoButton.addEventListener(MouseEvent.CLICK, startVideoButton_click);
+				
+				mainLayout.addElementAt(startVideoButton, 0);
+			}
+			
+			protected function stopLocalVideo():void
+			{
+				if(!localDisplay)
+					return;
+				
+				camera = null;
+				localDisplay.video.attachCamera(null);
+				
+				mainLayout.removeElement(localDisplay);
+				mainLayout.addElementAt(startVideoButton, 0);
+				
+				core.updateVideo(null);
+			
+			}
+			
+			protected function startVideoButton_click(event:Event):void
+			{
+				camera = Camera.getCamera();
+				
+				if(camera)
+				{
+					camera.setMode(160, 120, 15);
+					
+					localDisplay = new UserDisplay();
+					localDisplay.addEventListener(MouseEvent.CLICK, userDisplay_click);
+
+					mainLayout.removeElement(startVideoButton);
+					mainLayout.addElementAt(localDisplay, 0);
+
+					localDisplay.video.attachCamera(camera);
+				}
+				else
+					Alert.show("no camera found :(");
+				
+				core.updateVideo(camera);
+			}
+
+			private function userDisplay_click(event:Event) : void
+			{
+				if (!ExternalInterface.available)
+					return;
+				
+				if(event.target == localDisplay)
+					ExternalInterface.call("flash_selectedUser", core.localUserID);
+				else
+				{
+					for (var userID:String in userCams)
+						if(userCams[userID] == event.target)
+						{
+							ExternalInterface.call("flash_selectedUser", userID);
+							break;
+						}
+				}
+			}
 		]]>
 	</fx:Script>
 
 	<fx:Declarations>
 		<!-- Place non-visual elements (e.g., services, value objects) here -->
 	</fx:Declarations>
-	<s:Group id="mainLayout" width="100%" height="100%">
-		<s:layout>
-			<my:FlowLayout/>
-		</s:layout>
-		<mx:VBox>
-			<mx:LinkButton id="connectLink" label="connect" click="connectLink_click(event)" />
-			<mx:CheckBox id="sendVideoCheckbox" label="send video" change="sendVideoCheckbox_change(event)"/>
-			<mx:LinkButton label="copy my ID" click="copyIdLink_click(event)" />
-			<mx:LinkButton label="add peer" click="addPeerLink_click(event)" />
-			<mx:LinkButton label="del peer" click="delPeerLink_click(event)" />
-		</mx:VBox>
-		
-		<mx:Label id="statusLabel" width="200" height="120" fontSize="10" />
 
-		<mx:VideoDisplay id="localVideoDisplay" width="160" height="120"  />
+	<mx:VBox width="100%" backgroundAlpha="0">
+		<mx:LinkButton id="toggleVideoChat" label="turn off video chat" click="toggleVideoChat_click(event)" />
+		
+		<s:Group id="mainLayout" width="100%" height="100%" contentBackgroundAlpha="0">
+			<s:layout>
+				<my:FlowLayout/>
+			</s:layout>
+			<mx:Button width="160" height="120" label="hello" />
+			<mx:Button width="160" height="120" label="start" />
+			<mx:Button width="160" height="120" label="test" />
+		</s:Group>
+	
+	</mx:VBox>
+	
+	<s:Group id="optionsPanel" width="160" height="120" visible="false" contentBackgroundAlpha="0">
+		<mx:LinkButton label="hello" />
 	</s:Group>
+
 </s:Application>

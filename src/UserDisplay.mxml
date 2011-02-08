@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Group xmlns:fx="http://ns.adobe.com/mxml/2009" 
+			  xmlns:s="library://ns.adobe.com/flex/spark" 
+			  xmlns:mx="library://ns.adobe.com/flex/mx" width="160" height="120"
+			   mouseOver="display_mouseOverHandler(event)"
+			    mouseOut="display_mouseOutHandler(event)" 
+			    >
+
+	<fx:Script>
+		<![CDATA[
+			import mx.controls.Alert;
+			import mx.events.*;
+
+			protected function testbutton_clickHandler(event:MouseEvent):void
+			{
+				Alert.show("Backtraced");
+			}
+
+
+			protected function display_mouseOverHandler(event:MouseEvent):void
+			{
+				commandlayer.visible = true;
+			}
+
+
+			protected function display_mouseOutHandler(event:MouseEvent):void
+			{
+				if(!event.relatedObject || !contains(event.relatedObject))
+					commandlayer.visible = false;
+			}
+
+		]]>
+	</fx:Script>
+
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	
+	<mx:VideoDisplay id="video" width="160" height="120"/>
+	
+	<mx:Label color="#ffffff" text="swax"  x="5" y="3"/>
+	
+	<s:Group width="100%" height="100%" id="commandlayer" visible="false">		
+		<mx:Label color="#ff0000" text="report!"  id="testbutton" click="testbutton_clickHandler(event)" x="5" bottom="5" textDecoration="underline"/>
+		<s:VSlider x="137" y="10" height="81"/>
+		<s:CheckBox bottom="6" right="4" label="mute"/>
+	</s:Group>
+
+</s:Group>

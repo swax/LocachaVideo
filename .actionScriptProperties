@@ -12,6 +12,7 @@
     </libraryPath>
     <sourceAttachmentPath/>
   </compiler>
+  <theme themeIsDefault="false" themeIsSDK="true" themeLocation="${SDK_THEMES_DIR}/samples/themes/graphite"/>
   <applications>
     <application path="LocachaVideoBar.mxml"/>
   </applications>

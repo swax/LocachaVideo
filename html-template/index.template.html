@@ -21,9 +21,6 @@
 			 if JavaScript disabled.
 		-->
         <style type="text/css" media="screen"> 
-			html, body	{ height:100%; }
-			body { margin:0; padding:0; overflow:auto; text-align:center; 
-			       background-color: ${bgcolor}; }   
 			object:focus { outline:none; }
 			#flashContent { display:none; }
         </style>
@@ -33,7 +30,8 @@
         <link rel="stylesheet" type="text/css" href="history/history.css" />
         <script type="text/javascript" src="history/history.js"></script>
         <!${useBrowserHistory} END Browser History required section -->  
-		    
+		   
+			
         <script type="text/javascript" src="swfobject.js"></script>
         <script type="text/javascript">
             <!-- For version detection, set to min. required Flash Player version, or 0 (or 0.0.0), for no version detection. --> 
@@ -44,7 +42,7 @@
             var params = {};
             params.quality = "high";
             params.bgcolor = "${bgcolor}";
-            params.allowscriptaccess = "sameDomain";
+            params.allowscriptaccess = "always";
             params.allowfullscreen = "true";
             var attributes = {};
             attributes.id = "${application}";
@@ -58,51 +56,104 @@
 			<!-- JavaScript enabled so display the flashContent div in case it is not replaced with a swf object. -->
 			swfobject.createCSS("#flashContent", "display:block;text-align:left;");
         </script>
+		
+		
+	    <script type="text/javascript" src="http://locacha.com/static/jquery-1.4.2.min.js"></script>	
+		<script type="text/javascript">
+			
+			var localUserID = Math.floor( Math.random() * 10000 ).toString();
+			
+			function getFlexApp(appName)
+			{
+				if (navigator.appName.indexOf ("Microsoft") !=-1)
+					return window[appName];
+				else 			
+					return document[appName];
+			}
+
+			function flash_coreInit() {
+				getFlexApp('LocachaVideoBar').setLocalUser(localUserID);
+			}
+			
+			function flash_videoStart(videoID) {
+			
+				$("#userVideoID").text(localUserID + "/" + videoID);
+			}
+			
+			function flash_debugStatus(status) {
+				$("#debugStatus").html(status);
+			}
+		
+			function addUser() {
+				var connstr = $("#add-user-videoid").val();
+								
+				var parts = connstr.split("/");
+				
+				getFlexApp('LocachaVideoBar').addUser(parts[0], parts[1], 0);
+				
+				$("#add-user-videoid").val("");
+				return false;
+			}
+			
+			function delUser() {
+				var userID = $("#del-user-videoid").val();
+				
+				getFlexApp('LocachaVideoBar').delUser(userID);
+				
+				$("#del-user-videoid").val("");
+				return false;
+			}
+			
+			function flash_selectedUser(userID) {
+				$("#selectedUserID").text("selected user: " + userID);
+			}
+			
+			function setFlashHeight() {
+				//var height = $("#control-height-input").val();
+				
+				var optHeight = getFlexApp('LocachaVideoBar').getRightHeight();
+				$('#LocachaVideoBar').height(optHeight);
+				//alert(optHeight);
+		
+				//$("#control-height-input").val("");
+				return false;
+			}
+		</script>
+		
+		
     </head>
-    <body>
-        <!-- SWFObject's dynamic embed method replaces this alternative HTML content with Flash content when enough 
-			 JavaScript and Flash plug-in support is available. The div is initially hidden so that it doesn't show
-			 when JavaScript is disabled.
-		-->
-        <div id="flashContent">
-        	<p>
-	        	To view this page ensure that Adobe Flash Player version 
-				${version_major}.${version_minor}.${version_revision} or greater is installed. 
-			</p>
-			<script type="text/javascript"> 
-				var pageHost = ((document.location.protocol == "https:") ? "https://" :	"http://"); 
-				document.write("<a href='http://www.adobe.com/go/getflashplayer'><img src='" 
-								+ pageHost + "www.adobe.com/images/shared/download_buttons/get_flash_player.gif' alt='Get Adobe Flash player' /></a>" ); 
-			</script> 
-        </div>
-	   	
-       	<noscript>
-            <object classid="clsid:D27CDB6E-AE6D-11cf-96B8-444553540000" width="${width}" height="${height}" id="${application}">
-                <param name="movie" value="${swf}.swf" />
-                <param name="quality" value="high" />
-                <param name="bgcolor" value="${bgcolor}" />
-                <param name="allowScriptAccess" value="sameDomain" />
-                <param name="allowFullScreen" value="true" />
-                <!--[if !IE]>-->
-                <object type="application/x-shockwave-flash" data="${swf}.swf" width="${width}" height="${height}">
-                    <param name="quality" value="high" />
-                    <param name="bgcolor" value="${bgcolor}" />
-                    <param name="allowScriptAccess" value="sameDomain" />
-                    <param name="allowFullScreen" value="true" />
-                <!--<![endif]-->
-                <!--[if gte IE 6]>-->
-                	<p> 
-                		Either scripts and active content are not permitted to run or Adobe Flash Player version
-                		${version_major}.${version_minor}.${version_revision} or greater is not installed.
-                	</p>
-                <!--<![endif]-->
-                    <a href="http://www.adobe.com/go/getflashplayer">
-                        <img src="http://www.adobe.com/images/shared/download_buttons/get_flash_player.gif" alt="Get Adobe Flash Player" />
-                    </a>
-                <!--[if !IE]>-->
-                </object>
-                <!--<![endif]-->
-            </object>
-	    </noscript>		
+    <body style="background-color:#000000;font-family: Arial,Helvetica,sans-serif;font-size:10pt;" text="#ffffff">
+	
+		<div style="margin:10px">
+			<!-- SWFObject's dynamic embed method replaces this alternative HTML content with Flash content when enough 
+				 JavaScript and Flash plug-in support is available. The div is initially hidden so that it doesn't show
+				 when JavaScript is disabled.
+			-->
+			<div id="flashContent">
+				<p>
+					To view this page ensure that Adobe Flash Player version 
+					${version_major}.${version_minor}.${version_revision} or greater is installed. 
+				</p>
+				<script type="text/javascript"> 
+					var pageHost = ((document.location.protocol == "https:") ? "https://" :	"http://"); 
+					document.write("<a href='http://www.adobe.com/go/getflashplayer'><img src='" 
+									+ pageHost + "www.adobe.com/images/shared/download_buttons/get_flash_player.gif' alt='Get Adobe Flash player' /></a>" ); 
+				</script> 
+			</div>	
+		</div>
+		<br />
+		<br />
+		<div style="margin:10px" id="userVideoID">v10</div>
+		<div>
+			Add user/group id <input type="text" id="add-user-videoid" defaultvalue="" /> <a style="color:white" href="#" onclick="return addUser();">ok</a>
+		</div>
+		<div>
+			Remove user id <input type="text" id="del-user-videoid" defaultvalue="" /> <a style="color:white" href="#" onclick="return delUser();">ok</a>
+		</div>
+		<div>
+			Set height <input type="text" id="control-height-input" defaultvalue="" /> <a style="color:white" href="#" onclick="return setFlashHeight();">ok</a>
+		</div>
+		<div style="margin:10px" id="selectedUserID"></div>
+		<div style="margin:10px" id="debugStatus"></div>
    </body>
 </html>
