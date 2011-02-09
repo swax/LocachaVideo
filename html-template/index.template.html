@@ -30,8 +30,7 @@
         <link rel="stylesheet" type="text/css" href="history/history.css" />
         <script type="text/javascript" src="history/history.js"></script>
         <!${useBrowserHistory} END Browser History required section -->  
-		   
-			
+		    
         <script type="text/javascript" src="swfobject.js"></script>
         <script type="text/javascript">
             <!-- For version detection, set to min. required Flash Player version, or 0 (or 0.0.0), for no version detection. --> 
@@ -58,7 +57,7 @@
         </script>
 		
 		
-	    <script type="text/javascript" src="http://locacha.com/static/jquery-1.4.2.min.js"></script>	
+		<script type="text/javascript" src="http://locacha.com/static/jquery-1.4.2.min.js"></script>	
 		<script type="text/javascript">
 			
 			var localUserID = Math.floor( Math.random() * 10000 ).toString();
@@ -71,8 +70,9 @@
 					return document[appName];
 			}
 
-			function flash_coreInit() {
-				getFlexApp('LocachaVideoBar').setLocalUser(localUserID);
+			function flash_init() {
+				getFlexApp('LocachaVideoBar').setLocalUser("swax", localUserID);
+			
 			}
 			
 			function flash_videoStart(videoID) {
@@ -84,12 +84,16 @@
 				$("#debugStatus").html(status);
 			}
 		
+			function flash_sizeUpdate(height) {
+				$('#LocachaVideoBar').height(height);
+			}
+		
 			function addUser() {
 				var connstr = $("#add-user-videoid").val();
 								
 				var parts = connstr.split("/");
 				
-				getFlexApp('LocachaVideoBar').addUser(parts[0], parts[1], 0);
+				getFlexApp('LocachaVideoBar').addUser(parts[0], "<name>", "room", parts[1], 0);
 				
 				$("#add-user-videoid").val("");
 				return false;
@@ -118,17 +122,37 @@
 				//$("#control-height-input").val("");
 				return false;
 			}
+			
+			var videoChatEnabled = true;
+			
+			function toggleVideoChatLink() {
+			
+				if(videoChatEnabled)
+				{
+					getFlexApp('LocachaVideoBar').turnOff();
+					$('#toggleVideoChatLink').text('turn on');
+					videoChatEnabled = false;
+				}
+				else
+				{
+					getFlexApp('LocachaVideoBar').turnOn();
+					$('#toggleVideoChatLink').text('turn off');
+					videoChatEnabled = true;
+				}
+			
+				return false;
+			}
+			
 		</script>
-		
-		
     </head>
     <body style="background-color:#000000;font-family: Arial,Helvetica,sans-serif;font-size:10pt;" text="#ffffff">
 	
+        <!-- SWFObject's dynamic embed method replaces this alternative HTML content with Flash content when enough 
+			 JavaScript and Flash plug-in support is available. The div is initially hidden so that it doesn't show
+			 when JavaScript is disabled.
+		-->
+		<a style="color:white" href="#" id="toggleVideoChatLink" onclick="return toggleVideoChatLink();">turn off</a>
 		<div style="margin:10px">
-			<!-- SWFObject's dynamic embed method replaces this alternative HTML content with Flash content when enough 
-				 JavaScript and Flash plug-in support is available. The div is initially hidden so that it doesn't show
-				 when JavaScript is disabled.
-			-->
 			<div id="flashContent">
 				<p>
 					To view this page ensure that Adobe Flash Player version 
@@ -139,11 +163,11 @@
 					document.write("<a href='http://www.adobe.com/go/getflashplayer'><img src='" 
 									+ pageHost + "www.adobe.com/images/shared/download_buttons/get_flash_player.gif' alt='Get Adobe Flash player' /></a>" ); 
 				</script> 
-			</div>	
+			</div>
 		</div>
 		<br />
 		<br />
-		<div style="margin:10px" id="userVideoID">v10</div>
+		<div style="margin:10px" id="userVideoID">v11</div>
 		<div>
 			Add user/group id <input type="text" id="add-user-videoid" defaultvalue="" /> <a style="color:white" href="#" onclick="return addUser();">ok</a>
 		</div>

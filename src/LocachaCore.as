@@ -21,6 +21,7 @@ package
 		public var currentCamera:Camera;
 		
 		public var localUserID:String;
+		public var localUser:LocachaUser;
 		public var nearID:String = "";
 		public var groupID:String = "";
 		
@@ -39,7 +40,8 @@ package
 				ExternalInterface.addCallback("addUser", addUser);  
 				ExternalInterface.addCallback("delUser", delUser);  
 				
-				ExternalInterface.call("flash_coreInit");
+				ExternalInterface.call("flash_init");
+				ui.raiseSizeUpdate();
 			}
 			
 			statusTimer = new Timer(1000);
@@ -48,12 +50,15 @@ package
 			
 		}	
 		
-		public function setLocalUser(localUserID:String):void
+		public function setLocalUser(localUserID:String, name:String):void
 		{	
 			this.localUserID = localUserID;
+			
+		    localUser = new LocachaUser(this, localUserID);
+			localUser.update(name, "local", "", 0);
 		}
 		
-		public function addUser(userID:String, groupID:String, distance:int):void
+		public function addUser(userID:String, name:String, type:String, groupID:String, distance:int):void
 		{
 			var user:LocachaUser = null;
 			
@@ -62,7 +67,7 @@ package
 			else
 				user = users[userID];
 			
-			user.update(groupID, distance);
+			user.update(name, type, groupID, distance);
 			
 			users[userID] = user;
 			

@@ -8,6 +8,8 @@ package
 	{
 		public var core:LocachaCore;
 		public var userID:String;
+		public var name:String;
+		public var type:String;
 		public var groupID:String;
 		public var distance:int;
 
@@ -22,8 +24,10 @@ package
 			this.userID = userID;			
 		}
 		
-		public function update(groupID:String, distance:int):void
+		public function update(name:String, type:String, groupID:String, distance:int):void
 		{
+			this.name = name;
+			this.type = type;
 			this.groupID = groupID;
 			this.distance = distance;
 			
