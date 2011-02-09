@@ -5,7 +5,7 @@ package
 	import flash.media.*;
 	import flash.net.*;
 	import flash.utils.*;
-	
+	import mx.controls.*;
 	import mx.core.mx_internal;
 
 	
@@ -50,7 +50,7 @@ package
 			
 		}	
 		
-		public function setLocalUser(localUserID:String, name:String):void
+		public function setLocalUser(name:String, localUserID:String):void
 		{	
 			this.localUserID = localUserID;
 			
@@ -60,6 +60,12 @@ package
 		
 		public function addUser(userID:String, name:String, type:String, groupID:String, distance:int):void
 		{
+			if(userID == this.localUserID)
+			{
+				Alert.show("adding self")
+				return;
+			}
+			
 			var user:LocachaUser = null;
 			
 			if(!users[userID])
