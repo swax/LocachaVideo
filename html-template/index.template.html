@@ -80,12 +80,16 @@
 				$("#userVideoID").text(localUserID + "/" + videoID);
 			}
 			
-			function flash_debugStatus(status) {
-				$("#debugStatus").html(status);
-			}
-		
 			function flash_sizeUpdate(height) {
 				$('#LocachaVideoBar').height(height);
+			}
+			
+			function flash_reportUser(id) {
+				alert("user " + id.toString() + " reported");
+			}
+			
+			function flash_log(msg) {
+				$('#debugLog').append(msg + '<br />');
 			}
 		
 			function addUser() {
@@ -93,7 +97,7 @@
 								
 				var parts = connstr.split("/");
 				
-				getFlexApp('LocachaVideoBar').addUser(parts[0], "<name>", "room", parts[1], 0);
+				getFlexApp('LocachaVideoBar').addUser(parts[0], "<name>", parts[1], 20, 0);
 				
 				$("#add-user-videoid").val("");
 				return false;
@@ -112,14 +116,13 @@
 				$("#selectedUserID").text("selected user: " + userID);
 			}
 			
-			function setFlashHeight() {
-				//var height = $("#control-height-input").val();
+			function runCommand() {
+				var input = $("#command-input").val();
 				
-				var optHeight = getFlexApp('LocachaVideoBar').getRightHeight();
-				$('#LocachaVideoBar').height(optHeight);
-				//alert(optHeight);
-		
-				//$("#control-height-input").val("");
+				getFlexApp('LocachaVideoBar').runCommand(input);
+
+				$("#command-input").val("");
+				
 				return false;
 			}
 			
@@ -167,7 +170,7 @@
 		</div>
 		<br />
 		<br />
-		<div style="margin:10px" id="userVideoID">v11</div>
+		<div style="margin:10px" id="userVideoID">v13</div>
 		<div>
 			Add user/group id <input type="text" id="add-user-videoid" defaultvalue="" /> <a style="color:white" href="#" onclick="return addUser();">ok</a>
 		</div>
@@ -175,9 +178,9 @@
 			Remove user id <input type="text" id="del-user-videoid" defaultvalue="" /> <a style="color:white" href="#" onclick="return delUser();">ok</a>
 		</div>
 		<div>
-			Set height <input type="text" id="control-height-input" defaultvalue="" /> <a style="color:white" href="#" onclick="return setFlashHeight();">ok</a>
+			Run command <input type="text" id="command-input" defaultvalue="" /> <a style="color:white" href="#" onclick="return runCommand();">ok</a>
 		</div>
 		<div style="margin:10px" id="selectedUserID"></div>
-		<div style="margin:10px" id="debugStatus"></div>
+		<div style="margin:10px" id="debugLog">Debug Log:<br /></div>
    </body>
 </html>

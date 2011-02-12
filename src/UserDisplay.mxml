@@ -3,7 +3,7 @@
 			  xmlns:s="library://ns.adobe.com/flex/spark" 
 			  xmlns:mx="library://ns.adobe.com/flex/mx" width="160" height="120"
 			  mouseOver="display_mouseOverHandler(event)"
-			  mouseOut="display_mouseOutHandler(event)" 
+			  mouseOut="display_mouseOutHandler(event)"  removed="display_removed(event)"
 			    >
 
 	<fx:Script>
@@ -21,11 +21,33 @@
 			[Bindable]
 			public var userName:String;
 			
+			public var sampleTimer:Timer;
+			
+			
 			public function setUser(ui:LocachaVideoBar, user:LocachaUser):void
 			{
 				this.ui = ui;
 				this.user = user;
 				userName = user.name;
+				commandlayer.visible = false;
+				
+				if(user.userID == ui.core.localUserID)
+				{
+					reportButton.visible = false;
+					
+					if(ui.mic)
+						volumeSlider.value = ui.mic.gain;
+				}
+				else
+				{
+					user.videoStream.soundTransform = new SoundTransform(0);
+					user.videoStream.receiveAudio(true);
+					
+					sampleTimer = new Timer(200);
+					sampleTimer.addEventListener(TimerEvent.TIMER, timer_showNextSample);
+					sampleTimer.start();
+				}
+				
 			}
 			
 			protected function testbutton_clickHandler(event:MouseEvent):void
@@ -59,8 +81,55 @@
 					borderColor = uint("0x678CB1");
 				else
 					borderColor = uint("black");
+			}		
+			
+			protected function closeButton_clickHandler(event:MouseEvent):void
+			{
+				if(user.userID == ui.core.localUserID)
+					ui.stopLocalVideo();
+				else
+					ui.core.delUser(user.userID); 
 			}
-
+			
+			protected function reportButton_clickHandler(event:MouseEvent):void
+			{
+			    Alert.show("Is " + user.name + " being indecent on cam?", 
+					"Report User", Alert.YES | Alert.NO, 
+					this, 
+					function (alertEvent:CloseEvent):void 
+					{
+						if(alertEvent.detail == Alert.YES && ExternalInterface.available)
+							ExternalInterface.call("flash_reportUser", user.userID);
+					}); 		
+			}
+			
+			public function updateVolume(level:Number):void
+			{
+				volumeRect.height = volumeSlider.height * level / 100;
+			}
+			
+			public function volumeSlider_change(event:Event):void
+			{
+				if(user.userID == ui.core.localUserID && ui.mic)
+					ui.mic.gain = volumeSlider.value;
+				else
+					user.videoStream.soundTransform = new SoundTransform(volumeSlider.value);
+			}
+			
+			public function timer_showNextSample(event:TimerEvent):void
+			{
+				if(user.audioSamples.length == 0)
+					return;
+				
+				var level:Number = user.audioSamples.pop();
+				volumeRect.height = volumeSlider.height * level / 100;
+				
+			}
+			
+			public function display_removed(event:Event):void
+			{
+				sampleTimer.stop();
+			}
 		]]>
 	</fx:Script>
 
@@ -68,16 +137,22 @@
 		<!-- Place non-visual elements (e.g., services, value objects) here -->
 	</fx:Declarations>
 	
-	<s:BorderContainer id="displayBorder" borderColor="{borderColor}" borderWeight="1" borderStyle="solid" backgroundColor="black">
+	<s:BorderContainer id="displayBorder" borderColor="black" borderWeight="0" borderStyle="solid" backgroundColor="black">
 		<mx:VideoDisplay id="video" width="160" height="120" click="display_click(event)"/>		
+		<mx:Label color="#EC7600" text="{userName}"  x="1" y="1" fontWeight="bold"/>
 	</s:BorderContainer>
 
-	<mx:Label color="#ffffff" text="{userName}"  x="5" y="3"/>
-	
-	<s:Group width="100%" height="100%" id="commandlayer" visible="false">		
-		<mx:Label color="#ff0000" text="report!"  id="testbutton" click="testbutton_clickHandler(event)" x="5" bottom="5" textDecoration="underline"/>
-		<s:VSlider x="137" y="10" height="81"/>
-		<s:CheckBox bottom="6" right="4" label="mute"/>
+	<s:Group width="160" height="120" id="commandlayer" >		
+		<mx:Label color="#ff0000" text="x"  id="closeButton" click="closeButton_clickHandler(event)" right="0" y="1" fontWeight="bold"/>
+		<mx:Label color="#ff0000" text="report!"  id="reportButton" click="reportButton_clickHandler(event)" x="1" bottom="2" textDecoration="underline"/>
+				
+		<s:Rect id="volumeRect" width="2" height="0" right="14" bottom="25">
+			<s:fill>
+				<s:SolidColor color="green" alpha="1" />
+			</s:fill>
+		</s:Rect>
+		<s:VSlider id="volumeSlider" right="0" bottom="25" height="64" change="volumeSlider_change(event)" minimum="0" maximum="100" showDataTip="true" />
+
 	</s:Group>
 
 </s:Group>

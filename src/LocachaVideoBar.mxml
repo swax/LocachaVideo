@@ -22,14 +22,20 @@
 			import mx.managers.*;
 
 			
-			private var core:LocachaCore;
+			public var core:LocachaCore;
 			
-			private var camera:Camera = null;
-			private var localDisplay:UserDisplay;
-			private var startVideoButton:Button;
+			public var camera:Camera;
+			public var mic:Microphone;
 			
-			private var userCams:Object = new Object();
-			private var lastHeight:Number;
+			public var localDisplay:UserDisplay;
+			public var startVideoButton:Button;
+			
+			public var userCams:Object = new Object();
+			public var lastHeight:Number;
+			
+			public var sampleTimer:Timer;
+			public var lastSample:Number;
+			public var sendSamples:Array = new Array();
 			
 			
 			protected function application_initialize(event:FlexEvent):void
@@ -48,6 +54,9 @@
 				} 
 				
 				this.raiseSizeUpdate();
+				
+				sampleTimer = new Timer(200);
+				sampleTimer..addEventListener(TimerEvent.TIMER, timer_audioSample);
 			}
 			
 			public function user_update(user:LocachaUser):void
@@ -101,7 +110,6 @@
 				if(rightHeight != lastHeight)
 				{
 					lastHeight = rightHeight;
-					trace("firing " + lastHeight.toString());
 					ExternalInterface.call("flash_sizeUpdate", rightHeight);
 				}	
 			}
@@ -133,7 +141,7 @@
 				mainLayout.addElementAt(startVideoButton, 0);
 			}
 			
-			protected function stopLocalVideo():void
+			public function stopLocalVideo():void
 			{
 				if(!localDisplay)
 					return;
@@ -141,10 +149,16 @@
 				camera = null;
 				localDisplay.video.attachCamera(null);
 				
+				if(mic)
+				{
+					mic.addEventListener(SampleDataEvent.SAMPLE_DATA, mic_SampleData);
+					sampleTimer.stop();
+				}
+				
 				mainLayout.removeElement(localDisplay);
 				mainLayout.addElementAt(startVideoButton, 0);
 				
-				core.updateVideo(null);
+				core.updateLocalVideo(null, null);
 			
 				delete userCams[core.localUserID];
 			}
@@ -155,21 +169,29 @@
 				
 				if(camera)
 				{
+					mic = Microphone.getMicrophone();
+					if(mic)
+					{
+						mic.addEventListener(SampleDataEvent.SAMPLE_DATA, mic_SampleData);
+						sampleTimer.start()
+					}
+					
 					camera.setMode(160, 120, 15);
 					
 					localDisplay = new UserDisplay();
 					localDisplay.setUser(this, core.localUser);
+					
 					mainLayout.removeElement(startVideoButton);
 					mainLayout.addElementAt(localDisplay, 0);
 
 					localDisplay.video.attachCamera(camera);
-					
+
 					userCams[core.localUserID] = localDisplay;
 				}
 				else
 					Alert.show("no camera found :(");
 				
-				core.updateVideo(camera);
+				core.updateLocalVideo(camera, mic);
 			}
 
 			protected function mainLayout_clickHandler(event:MouseEvent):void
@@ -185,7 +207,37 @@
 				if (ExternalInterface.available)
 					ExternalInterface.call("flash_selectedUser", userID);		
 			}
+			
+			private function mic_SampleData(event:SampleDataEvent):void
+			{
+				if(!localDisplay)
+					return;
+				
+				// when the user pulls the slider up and down, they'll see their max volume be at the slider max
+				
+				var relativeVolume:Number = mic.activityLevel * mic.gain / 100;
+				
+				localDisplay.updateVolume(relativeVolume);
+				
+				lastSample = mic.activityLevel;
+			}
 
+			// basically there's no way for the receiver to query the audio volume coming in, so we have to send 
+			// the levels manually. it doesnt have to match up perfectly or be on time, just something so the remote
+			// user knows someone is talking on the other end
+			private function timer_audioSample(event:TimerEvent) : void
+			{
+				sendSamples.push(lastSample);
+				
+				if(sendSamples.length == 10)
+				{
+					if(core.videoStream)
+						core.videoStream.send("audioSamples", sendSamples);
+				
+					sendSamples.length = 0;
+				}				
+			}
+			
 		]]>
 	</fx:Script>
 

@@ -5,6 +5,7 @@ package
 	import flash.media.*;
 	import flash.net.*;
 	import flash.utils.*;
+	
 	import mx.controls.*;
 	import mx.core.mx_internal;
 
@@ -19,6 +20,8 @@ package
 		public var netConnection:NetConnection;
 		public var videoStream:NetStream;
 		public var currentCamera:Camera;
+		public var currentMic:Microphone;
+		public var localConnectState:String = UserConnectState.DISCONNECTED;
 		
 		public var localUserID:String;
 		public var localUser:LocachaUser;
@@ -27,7 +30,7 @@ package
 		
 		public var users:Object = new Object();
 		
-		private var statusTimer:Timer;
+		private var managePeersTimer:Timer;
 		
 		
 		public function LocachaCore(uiHandle:LocachaVideoBar)
@@ -39,26 +42,25 @@ package
 				ExternalInterface.addCallback("setLocalUser", setLocalUser);  
 				ExternalInterface.addCallback("addUser", addUser);  
 				ExternalInterface.addCallback("delUser", delUser);  
+				ExternalInterface.addCallback("runCommand", runCommand);  
 				
 				ExternalInterface.call("flash_init");
 				ui.raiseSizeUpdate();
 			}
 			
-			statusTimer = new Timer(1000);
-			statusTimer.addEventListener(TimerEvent.TIMER, timer_userStatus);
-			statusTimer.start();
-			
+			managePeersTimer = new Timer(1000);
+			managePeersTimer.addEventListener(TimerEvent.TIMER, timer_managePeers);
 		}	
 		
-		public function setLocalUser(name:String, localUserID:String):void
+		public function setLocalUser(localUserID:String, name:String):void
 		{	
 			this.localUserID = localUserID;
 			
 		    localUser = new LocachaUser(this, localUserID);
-			localUser.update(name, "local", "", 0);
+			localUser.update(name, "", 50, 0);
 		}
 		
-		public function addUser(userID:String, name:String, type:String, groupID:String, distance:int):void
+		public function addUser(userID:String, name:String, groupID:String, priority:int, distance:int):void
 		{
 			if(userID == this.localUserID)
 			{
@@ -73,14 +75,12 @@ package
 			else
 				user = users[userID];
 			
-			user.update(name, type, groupID, distance);
+			user.update(name, groupID, priority, distance);
 			
 			users[userID] = user;
 			
 			if(user.connectState == UserConnectState.DISCONNECTED)
 				user.connectState = UserConnectState.HOLDING;
-			
-			managePeers();
 		}
 		
 		public function delUser(userID:String):void
@@ -105,11 +105,15 @@ package
 			netConnection = new NetConnection();
 			netConnection.addEventListener(NetStatusEvent.NET_STATUS, stream_statusChange);
 			netConnection.connect(SERVER_ADDRESS + "/" + DEVELOPER_KEY);	
+			
+			managePeersTimer.start();
 		}
 
 		public function dispose():void
 		{
-			trace("disposing core");
+			LocaDebug.log("disposing core");
+			
+			managePeersTimer.stop();
 			
 			if(videoStream)
 			{
@@ -133,7 +137,7 @@ package
 		
 		private function stream_statusChange(event:NetStatusEvent):void
 		{
-			trace("Core net event: " + event.info.code);
+			LocaDebug.log("Core net event: " + event.info.code);
 			
 			switch (event.info.code)
 			{
@@ -155,6 +159,7 @@ package
 						videoStream.publish("videoStream-" + localUserID);
 						
 						videoStream.attachCamera(currentCamera);
+						videoStream.attachAudio(currentMic);
 					}
 					else
 					{
@@ -165,12 +170,8 @@ package
 					break;
 				
 				case "NetStream.Publish.Start":
-					if(event.target == videoStream)
-					{
-						if (ExternalInterface.available) 
-							ExternalInterface.call("flash_videoStart", groupID);
-	
-					}
+					// not reliable to determine local video start because 
+					// cam can be blank and this will fire
 					break;
 				
 				case "NetStream.Connect.Closed":
@@ -179,26 +180,109 @@ package
 		}
 		
 		// determines who to connect to and what to do next
-		private function managePeers() : void
+		private function timer_managePeers(event:TimerEvent) : void
 		{
-			for each (var user:LocachaUser in users)
-			{
-				if(user.connectState == UserConnectState.HOLDING)
-					user.connect();		
+			// connect to 10 peers ordered by priority / distance
+			// dont bump anyone, when people naturally log off, start next high priotiry video
+			
+			var maxCams:int = 8;
+			var camsInUse:int = 0;
+			
+			var deleteUsers:Array = new Array();
+			var sortedUsers:Array = new Array();
+			
+			var user:LocachaUser = null;
+			
+			for each (user in users)
+			{	
+				// if user is connecting, only set connected once we actually receive a 
+				// frame of video
+				if(user.connectState == UserConnectState.CONNECTING)
+				{
+					user.connectTimeout--;
+						
+					if(user.videoStream && user.videoStream.decodedFrames > 0)
+					{
+						LocaDebug.log("Video to " + user.name + " connected!");
+						user.connectState = UserConnectState.CONNECTED;
+					}
+					
+					else if(user.connectTimeout <= 0)
+					{
+						LocaDebug.log("Video connect to " + user.name + " timed out");
+						user.disconnect();
+					}
+				}
+				
+				// remove peers in disconnected state
+				if(user.connectState == UserConnectState.DISCONNECTED)
+					deleteUsers.push(user.userID);
+				else
+					sortedUsers.push(user);
+				
+				if(user.connectState == UserConnectState.CONNECTING || 
+				   user.connectState == UserConnectState.CONNECTED)
+				{
+					camsInUse++;
+				}
 			}
+			
+			for each (var id:int in deleteUsers) 
+				delete users[user.userID];
+
+			// sort users by priority/distance
+			sortedUsers.sort(function(a:LocachaUser, b:LocachaUser):int {
+				// -1 a before b, 0 equal, 1 a after b
+				if(a.priority > b.priority)
+					return -1;
+				else if(a.priority < b.priority)
+					return 1;
+				else
+				{
+					if(a.distance < b.distance)
+						return -1;
+					else if(a.distance > b.distance)
+						return 1;
+					else
+						return 0;
+				}
+			});
+				
+			// connect to available users
+			for each (user in users)
+			{
+				if(user.connectState == UserConnectState.HOLDING && camsInUse < maxCams)
+				{
+					user.connect();
+					camsInUse++;
+				}	
+			}	
+			
+			// check local connect state
+			if(localConnectState == UserConnectState.CONNECTING && 
+			   videoStream && videoStream.decodedFrames > 0)
+			{
+				LocaDebug.log("local video stream started");
+				localConnectState = UserConnectState.CONNECTED;
+			
+				if (ExternalInterface.available) 
+					ExternalInterface.call("flash_videoStart", groupID);
+				
+			}		
 		}
 		
 		/// called from ui when cam goes on/off
-		public function updateVideo(camera:Camera):void
+		public function updateLocalVideo(camera:Camera, mic:Microphone):void
 		{
 			currentCamera = camera;
+			currentMic = mic;
 			
 			// setup the video stream if there's a camera
 			if(camera && netConnection.connected)
 			{
 				if(!videoStream)
 				{
-					trace("publishing video stream");
+					LocaDebug.log("publishing video stream");
 					groupID = "videoGroup-" + Math.round(Math.random()*1000000).toString();
 					var spec:GroupSpecifier = new GroupSpecifier(groupID);
 					spec.serverChannelEnabled = true; 
@@ -207,25 +291,40 @@ package
 					var auth:String = spec.groupspecWithoutAuthorizations();
 					videoStream = new NetStream(netConnection, auth);
 					videoStream.addEventListener(NetStatusEvent.NET_STATUS, stream_statusChange);
+					
+					localConnectState = UserConnectState.CONNECTING;
 				}
+				// else video stream exists, change it
 				else
 				{
 					videoStream.attachCamera(camera);
+					videoStream.attachAudio(mic);
 				}
 			}
 
 			// close the video stream if no camera
 			if(!camera && videoStream)
 			{
-				trace("closing local video stream");
+				LocaDebug.log("closing local video stream");
 
 				videoStream.removeEventListener(NetStatusEvent.NET_STATUS, stream_statusChange);
 				videoStream.close();
 				videoStream = null;
+				
+				localConnectState = UserConnectState.DISCONNECTED;
 			}
 		}
 		
-		private function timer_userStatus(event:TimerEvent):void
+		private function runCommand(cmd:String):void
+		{
+			if(cmd == "status")
+				statusReport();
+			else if(cmd == "msg" && videoStream)
+				videoStream.send("message", "hello");
+			
+		}
+		
+		private function statusReport():void
 		{
 			var status:String = "my id: " + this.localUserID + "<br />";
 			
@@ -240,8 +339,7 @@ package
 					user.connectState + "<br />";
 			}
 			
-			if (ExternalInterface.available)
-				ExternalInterface.call("flash_debugStatus", status);
+			LocaDebug.log(status);
 		}
 	}
 }
