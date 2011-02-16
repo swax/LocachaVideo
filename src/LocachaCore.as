@@ -21,7 +21,7 @@ package
 		public var videoStream:NetStream;
 		public var currentCamera:Camera;
 		public var currentMic:Microphone;
-		public var localConnectState:String = UserConnectState.DISCONNECTED;
+		public var localConnectState:String = ConnectState.DISCONNECTED;
 		
 		public var localUserID:String;
 		public var localUser:LocachaUser;
@@ -45,7 +45,6 @@ package
 				ExternalInterface.addCallback("runCommand", runCommand);  
 				
 				ExternalInterface.call("flash_init");
-				ui.raiseSizeUpdate();
 			}
 			
 			managePeersTimer = new Timer(1000);
@@ -64,7 +63,7 @@ package
 		{
 			if(userID == this.localUserID)
 			{
-				Alert.show("adding self")
+				LocaDebug.log("attempt to add self");
 				return;
 			}
 			
@@ -79,8 +78,8 @@ package
 			
 			users[userID] = user;
 			
-			if(user.connectState == UserConnectState.DISCONNECTED)
-				user.connectState = UserConnectState.HOLDING;
+			if(user.connectState == ConnectState.DISCONNECTED)
+				user.connectState = ConnectState.HOLDING;
 		}
 		
 		public function delUser(userID:String):void
@@ -137,138 +136,167 @@ package
 		
 		private function stream_statusChange(event:NetStatusEvent):void
 		{
-			LocaDebug.log("Core net event: " + event.info.code);
-			
-			switch (event.info.code)
+			try
 			{
-				case "NetConnection.Connect.Success":
-					break;
+				LocaDebug.log("Core net event: " + event.info.code);
 				
-				case "NetConnection.Connect.Closed":
-					break;
-				
-				case "NetConnection.Connect.Failed":
-					break;
-				
-				case "NetStream.Connect.Success":
-
-					// we get this when other party connects to our control stream our outgoing stream
-					//status("Connection from: " + event.info.stream.farID + "\n");
-					if(event.info.stream == videoStream)
-					{
-						videoStream.publish("videoStream-" + localUserID);
-						
-						videoStream.attachCamera(currentCamera);
-						videoStream.attachAudio(currentMic);
-					}
-					else
-					{
-						for each (var user:LocachaUser in users)
-							if(event.info.stream == user.videoStream)
-								user.stream_statusChange(event);
-					}
-					break;
-				
-				case "NetStream.Publish.Start":
-					// not reliable to determine local video start because 
-					// cam can be blank and this will fire
-					break;
-				
-				case "NetStream.Connect.Closed":
-					break;
+				switch (event.info.code)
+				{
+					case "NetConnection.Connect.Success":
+						break;
+					
+					case "NetConnection.Connect.Closed":
+						break;
+					
+					case "NetConnection.Connect.Failed":
+						break;
+					
+					case "NetStream.Connect.Success":
+	
+						// we get this when other party connects to our control stream our outgoing stream
+						//status("Connection from: " + event.info.stream.farID + "\n");
+						if(event.info.stream == videoStream)
+						{
+							videoStream.publish("videoStream-" + localUserID);
+							
+							videoStream.attachCamera(currentCamera);
+							videoStream.attachAudio(currentMic);
+						}
+						else
+						{
+							for each (var user:LocachaUser in users)
+								if(event.info.stream == user.videoStream)
+									user.stream_statusChange(event);
+						}
+						break;
+					
+					case "NetStream.Publish.Start":
+						// not reliable to determine local video start because 
+						// cam can be blank and this will fire
+						localConnectState = ConnectState.PUBLISHED;
+						break;
+					
+					case "NetStream.Connect.Closed":
+						break;
+				}
+			}
+			catch(err:Error)
+			{
+				LocaDebug.logError("stream_statusChange", err);
 			}
 		}
 		
 		// determines who to connect to and what to do next
 		private function timer_managePeers(event:TimerEvent) : void
 		{
-			// connect to 10 peers ordered by priority / distance
-			// dont bump anyone, when people naturally log off, start next high priotiry video
-			
-			var maxCams:int = 8;
-			var camsInUse:int = 0;
-			
-			var deleteUsers:Array = new Array();
-			var sortedUsers:Array = new Array();
-			
-			var user:LocachaUser = null;
-			
-			for each (user in users)
-			{	
-				// if user is connecting, only set connected once we actually receive a 
-				// frame of video
-				if(user.connectState == UserConnectState.CONNECTING)
-				{
-					user.connectTimeout--;
-						
-					if(user.videoStream && user.videoStream.decodedFrames > 0)
+			try
+			{
+				ui.raiseSizeUpdate();
+				
+				// connect to 10 peers ordered by priority / distance
+				// dont bump anyone, when people naturally log off, start next high priotiry video
+				
+				var maxCams:int = 8;
+				var camsInUse:int = 0;
+				
+				var deleteUsers:Array = new Array();
+				var sortedUsers:Array = new Array();
+				
+				var user:LocachaUser = null;
+				
+				for each (user in users)
+				{	
+					if(user.connectState == ConnectState.CONNECTING ||
+					   user.connectState == ConnectState.CONNECTED)
 					{
-						LocaDebug.log("Video to " + user.name + " connected!");
-						user.connectState = UserConnectState.CONNECTED;
+						user.timeout++;
+										
+						if(user.connectState == ConnectState.CONNECTED && 
+							safeGetDecodedFrames(user.videoStream) > user.lastFrame)
+						{
+							user.lastFrame = user.videoStream.decodedFrames;
+							user.timeout = 0;
+						}
+						
+						if(user.timeout >= 20)
+						{
+							LocaDebug.log("Video connect to " + user.name + " timed out");
+							user.disconnect();
+						}
+						
+						camsInUse++;
 					}
 					
-					else if(user.connectTimeout <= 0)
-					{
-						LocaDebug.log("Video connect to " + user.name + " timed out");
-						user.disconnect();
-					}
+					// remove peers in disconnected state
+					if(user.connectState == ConnectState.DISCONNECTED)
+						deleteUsers.push(user.userID);
+					else
+						sortedUsers.push(user);
 				}
 				
-				// remove peers in disconnected state
-				if(user.connectState == UserConnectState.DISCONNECTED)
-					deleteUsers.push(user.userID);
-				else
-					sortedUsers.push(user);
-				
-				if(user.connectState == UserConnectState.CONNECTING || 
-				   user.connectState == UserConnectState.CONNECTED)
-				{
-					camsInUse++;
-				}
-			}
-			
-			for each (var id:int in deleteUsers) 
-				delete users[user.userID];
-
-			// sort users by priority/distance
-			sortedUsers.sort(function(a:LocachaUser, b:LocachaUser):int {
-				// -1 a before b, 0 equal, 1 a after b
-				if(a.priority > b.priority)
-					return -1;
-				else if(a.priority < b.priority)
-					return 1;
-				else
-				{
-					if(a.distance < b.distance)
+				for each (var id:int in deleteUsers) 
+					delete users[user.userID];
+	
+				// sort users by priority/distance
+				sortedUsers.sort(function(a:LocachaUser, b:LocachaUser):int {
+					// -1 a before b, 0 equal, 1 a after b
+					if(a.priority > b.priority)
 						return -1;
-					else if(a.distance > b.distance)
+					else if(a.priority < b.priority)
 						return 1;
 					else
-						return 0;
-				}
-			});
+					{
+						if(a.distance < b.distance)
+							return -1;
+						else if(a.distance > b.distance)
+							return 1;
+						else
+							return 0;
+					}
+				});
 				
-			// connect to available users
-			for each (user in users)
-			{
-				if(user.connectState == UserConnectState.HOLDING && camsInUse < maxCams)
+				// todo if sorted users > 50, find last unconnected users in list and disconnect them
+				
+				// connect to available users
+				for each (user in users)
 				{
-					user.connect();
-					camsInUse++;
+					if(user.connectState == ConnectState.HOLDING && camsInUse < maxCams)
+					{
+						user.connect();
+						camsInUse++;
+					}	
 				}	
-			}	
-			
-			// check local connect state
-			if(localConnectState == UserConnectState.CONNECTING && 
-			   videoStream && videoStream.decodedFrames > 0)
-			{
-				LocaDebug.log("local video stream started");
-				localConnectState = UserConnectState.CONNECTED;
-			
-				if (ExternalInterface.available) 
-					ExternalInterface.call("flash_videoStart", groupID);
 				
-			}		
+				// check local connect state
+				if(localConnectState == ConnectState.PUBLISHED && 
+					safeGetDecodedFrames(videoStream) > 0)
+				{
+					LocaDebug.log("local video stream started");
+					localConnectState = ConnectState.CONNECTED;
+				
+					if (ExternalInterface.available) 
+						ExternalInterface.call("flash_videoUpdate", groupID);	
+				}		
+			}
+			catch(err:Error)
+			{
+				LocaDebug.logError("timer_managePeers", err);
+			}
+		}
+		
+		public function safeGetDecodedFrames(stream:NetStream):uint
+		{
+			if(!stream)
+				return 0;
+			
+			try
+			{
+				return stream.decodedFrames;
+			}
+			catch(err:Error)
+			{
+			}
+			return 0;
 		}
 		
 		/// called from ui when cam goes on/off
@@ -278,28 +306,19 @@ package
 			currentMic = mic;
 			
 			// setup the video stream if there's a camera
-			if(camera && netConnection.connected)
+			if(camera && netConnection.connected && !videoStream)
 			{
-				if(!videoStream)
-				{
-					LocaDebug.log("publishing video stream");
-					groupID = "videoGroup-" + Math.round(Math.random()*1000000).toString();
-					var spec:GroupSpecifier = new GroupSpecifier(groupID);
-					spec.serverChannelEnabled = true; 
-					spec.multicastEnabled = true;
+				LocaDebug.log("publishing video stream");
+				groupID = "videoGroup-" + Math.round(Math.random()*1000000).toString();
+				var spec:GroupSpecifier = new GroupSpecifier(groupID);
+				spec.serverChannelEnabled = true; 
+				spec.multicastEnabled = true;
 
-					var auth:String = spec.groupspecWithoutAuthorizations();
-					videoStream = new NetStream(netConnection, auth);
-					videoStream.addEventListener(NetStatusEvent.NET_STATUS, stream_statusChange);
-					
-					localConnectState = UserConnectState.CONNECTING;
-				}
-				// else video stream exists, change it
-				else
-				{
-					videoStream.attachCamera(camera);
-					videoStream.attachAudio(mic);
-				}
+				var auth:String = spec.groupspecWithoutAuthorizations();
+				videoStream = new NetStream(netConnection, auth);
+				videoStream.addEventListener(NetStatusEvent.NET_STATUS, stream_statusChange);
+				
+				localConnectState = ConnectState.CONNECTING;
 			}
 
 			// close the video stream if no camera
@@ -311,7 +330,10 @@ package
 				videoStream.close();
 				videoStream = null;
 				
-				localConnectState = UserConnectState.DISCONNECTED;
+				localConnectState = ConnectState.DISCONNECTED;
+				
+				if (ExternalInterface.available) 
+					ExternalInterface.call("flash_videoUpdate", "");
 			}
 		}
 		
@@ -341,5 +363,6 @@ package
 			
 			LocaDebug.log(status);
 		}
+		
 	}
 }

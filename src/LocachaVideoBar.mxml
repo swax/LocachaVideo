@@ -5,9 +5,9 @@
 			   xmlns:my="*"
 			   height = "140" width="100%"
 			   minWidth="300" minHeight="100" 
-			   initialize="application_initialize(event)" 
 			   backgroundColor="#293134"
-			   resize="application1_resizeHandler(event)">
+			   resize="application1_resizeHandler(event)" 
+			   applicationComplete="app_complete(event)" >
 
 	<fx:Script>
 		<![CDATA[
@@ -38,8 +38,10 @@
 			public var sendSamples:Array = new Array();
 			
 			
-			protected function application_initialize(event:FlexEvent):void
+			protected function app_complete(event:FlexEvent):void
 			{
+				Security.allowDomain("*")
+					
 				core = new LocachaCore(this);
 				
 				core.connect();
@@ -52,11 +54,27 @@
 					ExternalInterface.addCallback("turnOff", turnOff); 
 					ExternalInterface.addCallback("selectUser", selectUser); 
 				} 
-				
-				this.raiseSizeUpdate();
-				
+
 				sampleTimer = new Timer(200);
-				sampleTimer..addEventListener(TimerEvent.TIMER, timer_audioSample);
+				sampleTimer.addEventListener(TimerEvent.TIMER, timer_audioSample);
+				
+				loaderInfo.uncaughtErrorEvents.addEventListener(UncaughtErrorEvent.UNCAUGHT_ERROR, app_uncaughtError);
+
+			}
+			
+			private function app_uncaughtError(e:UncaughtErrorEvent):void
+			{
+				// Do something with your error.
+				if (e.error is Error)
+				{
+					var error:Error = e.error as Error;
+					LocaDebug.log("Uncaught error: " + error.name + " - " + error.message + " - " + error.getStackTrace());
+				}
+				else
+				{
+					var errorEvent:ErrorEvent = e.error as ErrorEvent;
+					LocaDebug.log("Uncaught error event: " + errorEvent.errorID + " - " + errorEvent.text);
+				}
 			}
 			
 			public function user_update(user:LocachaUser):void
@@ -98,14 +116,13 @@
 			
 			public function raiseSizeUpdate():void
 			{
-				var rightHeight:Number = 3;
+				var rightHeight:Number = 0;
 				
 				if(mainLayout && mainLayout.visible)
-				{
-					rightHeight += (mainLayout.layout as FlowLayout).internalHeight;
-					if(rightHeight < 140)
-						rightHeight = 140;
-				}
+					rightHeight = (mainLayout.layout as FlowLayout).internalHeight;
+				
+				if(rightHeight < 140)
+					rightHeight = 140;
 
 				if(rightHeight != lastHeight)
 				{
@@ -165,33 +182,40 @@
 			
 			protected function startVideoButton_click(event:Event):void
 			{
-				camera = Camera.getCamera();
-				
-				if(camera)
+				try
 				{
-					mic = Microphone.getMicrophone();
-					if(mic)
+					camera = Camera.getCamera();
+					
+					if(camera)
 					{
-						mic.addEventListener(SampleDataEvent.SAMPLE_DATA, mic_SampleData);
-						sampleTimer.start()
+						mic = Microphone.getMicrophone();
+						if(mic)
+						{
+							mic.addEventListener(SampleDataEvent.SAMPLE_DATA, mic_SampleData);
+							sampleTimer.start()
+						}
+						
+						camera.setMode(160, 120, 15);
+						
+						localDisplay = new UserDisplay();
+						localDisplay.setUser(this, core.localUser);
+						
+						mainLayout.removeElement(startVideoButton);
+						mainLayout.addElementAt(localDisplay, 0);
+	
+						localDisplay.video.attachCamera(camera);
+	
+						userCams[core.localUserID] = localDisplay;
 					}
+					else
+						Alert.show("no camera found :(");
 					
-					camera.setMode(160, 120, 15);
-					
-					localDisplay = new UserDisplay();
-					localDisplay.setUser(this, core.localUser);
-					
-					mainLayout.removeElement(startVideoButton);
-					mainLayout.addElementAt(localDisplay, 0);
-
-					localDisplay.video.attachCamera(camera);
-
-					userCams[core.localUserID] = localDisplay;
+					core.updateLocalVideo(camera, mic);
 				}
-				else
-					Alert.show("no camera found :(");
-				
-				core.updateLocalVideo(camera, mic);
+				catch(err:Error)
+				{
+					LocaDebug.logError("startVideoButton_click", err);
+				}
 			}
 
 			protected function mainLayout_clickHandler(event:MouseEvent):void
@@ -227,15 +251,22 @@
 			// user knows someone is talking on the other end
 			private function timer_audioSample(event:TimerEvent) : void
 			{
-				sendSamples.push(lastSample);
-				
-				if(sendSamples.length == 10)
+				try
 				{
-					if(core.videoStream)
-						core.videoStream.send("audioSamples", sendSamples);
-				
-					sendSamples.length = 0;
-				}				
+					sendSamples.push(lastSample);
+					
+					if(sendSamples.length == 10)
+					{
+						if(core.videoStream && core.localConnectState == ConnectState.CONNECTED)
+							core.videoStream.send("audioSamples", sendSamples);
+					
+						sendSamples.length = 0;
+					}	
+				}
+				catch(err:Error)
+				{
+					LocaDebug.logError("timer_audioSample", err);
+				}
 			}
 			
 		]]>
@@ -249,9 +280,9 @@
 		<s:layout>
 			<my:FlowLayout/>
 		</s:layout>
-		<mx:Button width="160" height="120" label="hello" />
+		<!--<mx:Button width="160" height="120" label="hello" />
 		<mx:Button width="160" height="120" label="start" />
-		<mx:Button width="160" height="120" label="test" />
+		<mx:Button width="160" height="120" label="test" />-->
 	</s:Group>
 
 </s:Application>

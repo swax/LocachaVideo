@@ -16,8 +16,9 @@ package
 		public var priority:int;
 		public var distance:int;
 
-		public var connectTimeout:int = 10;
-		public var connectState:String = UserConnectState.HOLDING;
+		public var timeout:int;
+		public var lastFrame:int;
+		public var connectState:String = ConnectState.HOLDING;
 
 		public var videoStream:NetStream;
 		public var audioSamples:Array = new Array();
@@ -38,7 +39,7 @@ package
 			this.priority = priority;
 			this.distance = distance;
 			
-			if(connectState != UserConnectState.HOLDING && groupID != prevGroupID)
+			if(connectState != ConnectState.HOLDING && groupID != prevGroupID)
 			{
 				disconnect();
 				connect();
@@ -47,7 +48,10 @@ package
 		
 		public function connect():void
 		{
-			connectState = UserConnectState.CONNECTING;
+			lastFrame = 0;
+			timeout = 0;
+			
+			connectState = ConnectState.CONNECTING;
 			
 			var spec:GroupSpecifier = new GroupSpecifier(groupID);
 			spec.serverChannelEnabled = true; 
@@ -68,14 +72,13 @@ package
 			videoStream.client = client;
 			
 			// result event is called on core netConnect
-			core.ui.user_update(this);
 		}
 		
 		public function disconnect():void 
 		{
 			LocaDebug.log("disconnecting")
-			connectState = UserConnectState.DISCONNECTED;
-			
+			connectState = ConnectState.DISCONNECTED;
+						
 			if(videoStream)
 			{
 				videoStream.removeEventListener(NetStatusEvent.NET_STATUS, stream_statusChange);
@@ -107,6 +110,9 @@ package
 				case "NetStream.Connect.Success":
 					videoStream.play("videoStream-" + userID);
 					videoStream.receiveVideo(true);
+					connectState = ConnectState.CONNECTED;
+					LocaDebug.log("Playing " + name + " video!");
+					core.ui.user_update(this); 
 					break;
 				
 				//case "NetStream.MulticastStream.Reset":

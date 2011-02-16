@@ -128,7 +128,8 @@
 			
 			public function display_removed(event:Event):void
 			{
-				sampleTimer.stop();
+				if(sampleTimer)
+					sampleTimer.stop();
 			}
 		]]>
 	</fx:Script>

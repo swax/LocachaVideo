@@ -75,9 +75,14 @@
 			
 			}
 			
-			function flash_videoStart(videoID) {
+			function flash_videoUpdate(videoID) {
 			
-				$("#userVideoID").text(localUserID + "/" + videoID);
+				var text = "none";
+				
+				if(videoID)
+					text = localUserID + "/" + videoID;
+				
+				$("#userVideoID").text(text);
 			}
 			
 			function flash_sizeUpdate(height) {
