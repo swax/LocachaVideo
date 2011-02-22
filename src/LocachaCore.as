@@ -18,6 +18,7 @@ package
 		public var ui:LocachaVideoBar;
 		
 		public var netConnection:NetConnection;
+
 		public var videoStream:NetStream;
 		public var currentCamera:Camera;
 		public var currentMic:Microphone;
@@ -33,10 +34,12 @@ package
 		private var managePeersTimer:Timer;
 		
 		
+		
+		
 		public function LocachaCore(uiHandle:LocachaVideoBar)
 		{
 			ui = uiHandle;
-
+			
 			if (ExternalInterface.available)
 			{
 				ExternalInterface.addCallback("setLocalUser", setLocalUser);  
@@ -82,6 +85,7 @@ package
 				user.connectState = ConnectState.HOLDING;
 		}
 		
+		// disconnects user, use when ignoring someone
 		public function delUser(userID:String):void
 		{
 			if(!users[userID])
@@ -92,8 +96,6 @@ package
 			user.disconnect();
 			
 			delete users[userID];
-			
-		    ui.user_update(user);
 		}
 		
 		public function connect():void
@@ -189,6 +191,10 @@ package
 		// determines who to connect to and what to do next
 		private function timer_managePeers(event:TimerEvent) : void
 		{
+			// wait till connected before we start trying users
+			if(!netConnection.connected)
+				return;
+			
 			try
 			{
 				ui.raiseSizeUpdate();
@@ -202,22 +208,13 @@ package
 				var deleteUsers:Array = new Array();
 				var sortedUsers:Array = new Array();
 				
-				var user:LocachaUser = null;
-				
-				for each (user in users)
+				for each (var user:LocachaUser in users)
 				{	
 					if(user.connectState == ConnectState.CONNECTING ||
 					   user.connectState == ConnectState.CONNECTED)
 					{
 						user.timeout++;
-										
-						if(user.connectState == ConnectState.CONNECTED && 
-							safeGetDecodedFrames(user.videoStream) > user.lastFrame)
-						{
-							user.lastFrame = user.videoStream.decodedFrames;
-							user.timeout = 0;
-						}
-						
+
 						if(user.timeout >= 20)
 						{
 							LocaDebug.log("Video connect to " + user.name + " timed out");
@@ -235,7 +232,7 @@ package
 				}
 				
 				for each (var id:int in deleteUsers) 
-					delete users[user.userID];
+					delete users[id];
 	
 				// sort users by priority/distance
 				sortedUsers.sort(function(a:LocachaUser, b:LocachaUser):int {
@@ -258,11 +255,11 @@ package
 				// todo if sorted users > 50, find last unconnected users in list and disconnect them
 				
 				// connect to available users
-				for each (user in users)
+				for each (var connUser:LocachaUser in users)
 				{
-					if(user.connectState == ConnectState.HOLDING && camsInUse < maxCams)
+					if(connUser.connectState == ConnectState.HOLDING && camsInUse < maxCams)
 					{
-						user.connect();
+						connUser.connect();
 						camsInUse++;
 					}	
 				}	

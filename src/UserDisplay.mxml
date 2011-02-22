@@ -87,8 +87,12 @@
 			{
 				if(user.userID == ui.core.localUserID)
 					ui.stopLocalVideo();
-				else
+				else {
 					ui.core.delUser(user.userID); 
+					
+					// in case user already delete from core this makes sure window gets removed
+					ui.user_update(user);
+				}
 			}
 			
 			protected function reportButton_clickHandler(event:MouseEvent):void

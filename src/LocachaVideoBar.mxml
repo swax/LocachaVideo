@@ -28,8 +28,7 @@
 			public var mic:Microphone;
 			
 			public var localDisplay:UserDisplay;
-			public var startVideoButton:Button;
-			
+
 			public var userCams:Object = new Object();
 			public var lastHeight:Number;
 			
@@ -45,9 +44,7 @@
 				core = new LocachaCore(this);
 				
 				core.connect();
-				
-				showStartVideoButton();
-				
+
 				if (ExternalInterface.available)
 				{
 					ExternalInterface.addCallback("turnOn", turnOn); 
@@ -145,18 +142,6 @@
 				mainLayout.visible = false;
 				raiseSizeUpdate();
 			}
-
-			private function showStartVideoButton():void
-			{
-				startVideoButton = new Button();
-				startVideoButton.label="start my video";
-				startVideoButton.labelPlacement = "center";
-				startVideoButton.width = 160;
-				startVideoButton.height = 120;
-				startVideoButton.addEventListener(MouseEvent.CLICK, startVideoButton_click);
-				
-				mainLayout.addElementAt(startVideoButton, 0);
-			}
 			
 			public function stopLocalVideo():void
 			{
@@ -167,13 +152,12 @@
 				localDisplay.video.attachCamera(null);
 				
 				if(mic)
-				{
 					mic.addEventListener(SampleDataEvent.SAMPLE_DATA, mic_SampleData);
-					sampleTimer.stop();
-				}
+
+				sampleTimer.stop();
 				
 				mainLayout.removeElement(localDisplay);
-				mainLayout.addElementAt(startVideoButton, 0);
+				startVideoButton.visible = true;
 				
 				core.updateLocalVideo(null, null);
 			
@@ -190,17 +174,16 @@
 					{
 						mic = Microphone.getMicrophone();
 						if(mic)
-						{
 							mic.addEventListener(SampleDataEvent.SAMPLE_DATA, mic_SampleData);
-							sampleTimer.start()
-						}
+							
+						sampleTimer.start(); // run because we use it for ping as well
 						
 						camera.setMode(160, 120, 15);
 						
 						localDisplay = new UserDisplay();
 						localDisplay.setUser(this, core.localUser);
 						
-						mainLayout.removeElement(startVideoButton);
+						startVideoButton.visible = false;
 						mainLayout.addElementAt(localDisplay, 0);
 	
 						localDisplay.video.attachCamera(camera);
@@ -249,6 +232,7 @@
 			// basically there's no way for the receiver to query the audio volume coming in, so we have to send 
 			// the levels manually. it doesnt have to match up perfectly or be on time, just something so the remote
 			// user knows someone is talking on the other end
+			// ** this function also used as ping so sends a bunch of 0s if mic not on
 			private function timer_audioSample(event:TimerEvent) : void
 			{
 				try
@@ -280,6 +264,8 @@
 		<s:layout>
 			<my:FlowLayout/>
 		</s:layout>
+		<mx:Button id="startVideoButton" labelPlacement="bottom" label="start my cam" icon="@Embed(source='assets/camera.png')" overIcon="@Embed(source='assets/camera_over.png')"  width="160" height="120" click="startVideoButton_click(event)"  />
+		
 		<!--<mx:Button width="160" height="120" label="hello" />
 		<mx:Button width="160" height="120" label="start" />
 		<mx:Button width="160" height="120" label="test" />-->

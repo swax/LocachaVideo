@@ -17,7 +17,6 @@ package
 		public var distance:int;
 
 		public var timeout:int;
-		public var lastFrame:int;
 		public var connectState:String = ConnectState.HOLDING;
 
 		public var videoStream:NetStream;
@@ -48,7 +47,6 @@ package
 		
 		public function connect():void
 		{
-			lastFrame = 0;
 			timeout = 0;
 			
 			connectState = ConnectState.CONNECTING;
@@ -63,6 +61,8 @@ package
 			var client:Object = new Object();
 			client.audioSamples = function(samples:Array):void 
 			{						
+				timeout = 0; //psuedo ping
+				
 				for each(var sample:Number in samples)
 					audioSamples.push(sample);
 					
