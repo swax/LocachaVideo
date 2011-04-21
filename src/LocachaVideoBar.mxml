@@ -124,7 +124,7 @@
 				if(rightHeight != lastHeight)
 				{
 					lastHeight = rightHeight;
-					ExternalInterface.call("flash_sizeUpdate", rightHeight);
+					ExternalInterface.call("site.flash_sizeUpdate", rightHeight);
 				}	
 			}
 			
@@ -157,7 +157,10 @@
 				sampleTimer.stop();
 				
 				mainLayout.removeElement(localDisplay);
+				localDisplay = null;
+				
 				startVideoButton.visible = true;
+				startVideoButton.includeInLayout = true;
 				
 				core.updateLocalVideo(null, null);
 			
@@ -175,20 +178,22 @@
 						mic = Microphone.getMicrophone();
 						if(mic)
 							mic.addEventListener(SampleDataEvent.SAMPLE_DATA, mic_SampleData);
-							
-						sampleTimer.start(); // run because we use it for ping as well
-						
-						camera.setMode(160, 120, 15);
-						
+
+						camera.setMode(160, 120, 5);
+						mic.codec = SoundCodec.SPEEX;
+
 						localDisplay = new UserDisplay();
 						localDisplay.setUser(this, core.localUser);
 						
 						startVideoButton.visible = false;
+						startVideoButton.includeInLayout = false;
 						mainLayout.addElementAt(localDisplay, 0);
 	
 						localDisplay.video.attachCamera(camera);
 	
 						userCams[core.localUserID] = localDisplay;
+						
+						sampleTimer.start(); // run because we use it for ping as well
 					}
 					else
 						Alert.show("no camera found :(");
@@ -212,7 +217,7 @@
 					user.highlight(userID);		
 					
 				if (ExternalInterface.available)
-					ExternalInterface.call("flash_selectedUser", userID);		
+					ExternalInterface.call("site.flash_selectedUser", userID);		
 			}
 			
 			private function mic_SampleData(event:SampleDataEvent):void

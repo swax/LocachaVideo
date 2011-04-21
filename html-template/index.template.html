@@ -31,7 +31,12 @@
         <script type="text/javascript" src="history/history.js"></script>
         <!${useBrowserHistory} END Browser History required section -->  
 		    
-        <script type="text/javascript" src="swfobject.js"></script>
+		<script type="text/javascript" src="https://www.google.com/jsapi?key=ABQIAAAAL__jXCIHlTYqhGq79OezGRTh7Ic-EUS_WpkhFghC5d8IWKWinBQJ8WA0tR-6xDeHfWfY4R-c-6Kjow"></script>
+		<script type="text/javascript">
+		   google.load("jquery", "1.5.2");
+		   google.load("swfobject", "2.2");
+		</script>
+	
         <script type="text/javascript">
             <!-- For version detection, set to min. required Flash Player version, or 0 (or 0.0.0), for no version detection. --> 
             var swfVersionStr = "${version_major}.${version_minor}.${version_revision}";
@@ -56,110 +61,118 @@
 			swfobject.createCSS("#flashContent", "display:block;text-align:left;");
         </script>
 		
-		
-		<script type="text/javascript" src="http://locacha.com/static/jquery-1.4.2.min.js"></script>	
 		<script type="text/javascript">
 			
-			var localUserID = Math.floor( Math.random() * 10000 ).toString();
+			var site = null;
 			
-			function getFlexApp(appName)
-			{
-				if (navigator.appName.indexOf ("Microsoft") !=-1)
-					return window[appName];
-				else 			
-					return document[appName];
-			}
-
-			function flash_init() {
-				getFlexApp('LocachaVideoBar').setLocalUser(localUserID, "swax");
-			
+			function load() {
+				site = new FlashSite();
 			}
 			
-			function flash_videoUpdate(videoID) {
+			function FlashSite() {
 			
-				var text = "none";
+				var self = this;
 				
-				if(videoID)
-					text = localUserID + "/" + videoID;
+				self.localUserID = Math.floor( Math.random() * 10000 ).toString();
 				
-				$("#userVideoID").text(text);
-			}
-			
-			function flash_sizeUpdate(height) {
-				$('#LocachaVideoBar').height(height);
-			}
-			
-			function flash_reportUser(id) {
-				alert("user " + id.toString() + " reported");
-			}
-			
-			function flash_log(msg) {
-				$('#debugLog').append(msg + '<br />');
-			}
-		
-			function addUser() {
-				var connstr = $("#add-user-videoid").val();
-								
-				var parts = connstr.split("/");
-				
-				getFlexApp('LocachaVideoBar').addUser(parts[0], "<name>", parts[1], 20, 0);
-				
-				$("#add-user-videoid").val("");
-				return false;
-			}
-			
-			function delUser() {
-				var userID = $("#del-user-videoid").val();
-				
-				getFlexApp('LocachaVideoBar').delUser(userID);
-				
-				$("#del-user-videoid").val("");
-				return false;
-			}
-			
-			function flash_selectedUser(userID) {
-				$("#selectedUserID").text("selected user: " + userID);
-			}
-			
-			function runCommand() {
-				var input = $("#command-input").val();
-				
-				getFlexApp('LocachaVideoBar').runCommand(input);
-
-				$("#command-input").val("");
-				
-				return false;
-			}
-			
-			var videoChatEnabled = true;
-			
-			function toggleVideoChatLink() {
-			
-				if(videoChatEnabled)
+				self.getFlexApp = function(appName)
 				{
-					getFlexApp('LocachaVideoBar').turnOff();
-					$('#toggleVideoChatLink').text('turn on');
-					videoChatEnabled = false;
-				}
-				else
-				{
-					getFlexApp('LocachaVideoBar').turnOn();
-					$('#toggleVideoChatLink').text('turn off');
-					videoChatEnabled = true;
-				}
+					if (navigator.appName.indexOf ("Microsoft") !=-1)
+						return window[appName];
+					else 			
+						return document[appName];
+				};
+
+				self.flash_init = function() {
+					self.getFlexApp('LocachaVideoBar').setLocalUser(self.localUserID, "swax");
+				};
+				
+				self.flash_videoUpdate = function(videoID) {
+				
+					var text = "none";
+					
+					if(videoID)
+						text = self.localUserID + "/" + videoID;
+					
+					$("#userVideoID").text(text);
+				};
+				
+				self.flash_sizeUpdate = function(height) {
+					$('#LocachaVideoBar').height(height);
+				};
+				
+				self.flash_reportUser = function(id) {
+					alert("user " + id.toString() + " reported");
+				};
+				
+				self.flash_log = function(msg) {
+					$('#debugLog').append(msg + '<br />');
+				};
 			
-				return false;
-			}
+				self.addUser = function() {
+					var connstr = $("#add-user-videoid").val();
+									
+					var parts = connstr.split("/");
+					
+					self.getFlexApp('LocachaVideoBar').addUser(parts[0], "<name>", parts[1], 20, 0);
+					
+					$("#add-user-videoid").val("");
+					return false;
+				};
+				
+				self.delUser = function() {
+					var userID = $("#del-user-videoid").val();
+					
+					self.getFlexApp('LocachaVideoBar').delUser(userID);
+					
+					$("#del-user-videoid").val("");
+					return false;
+				};
+				
+				self.flash_selectedUser = function(userID) {
+					$("#selectedUserID").text("selected user: " + userID);
+				};
+				
+				self.runCommand = function() {
+					var input = $("#command-input").val();
+					
+					self.getFlexApp('LocachaVideoBar').runCommand(input);
+
+					$("#command-input").val("");
+					
+					return false;
+				};
+				
+				self.videoChatEnabled = true;
+				
+				self.toggleVideoChatLink = function() {
+				
+					if(self.videoChatEnabled)
+					{
+						self.getFlexApp('LocachaVideoBar').turnOff();
+						$('#toggleVideoChatLink').text('turn on');
+						self.videoChatEnabled = false;
+					}
+					else
+					{
+						self.getFlexApp('LocachaVideoBar').turnOn();
+						$('#toggleVideoChatLink').text('turn off');
+						self.videoChatEnabled = true;
+					}
+				
+					return false;
+				};
+			};
 			
 		</script>
     </head>
-    <body style="background-color:#000000;font-family: Arial,Helvetica,sans-serif;font-size:10pt;" text="#ffffff">
+    <body onload="load();" style="background-color:#000000;font-family: Arial,Helvetica,sans-serif;font-size:10pt;" text="#ffffff">
 	
         <!-- SWFObject's dynamic embed method replaces this alternative HTML content with Flash content when enough 
 			 JavaScript and Flash plug-in support is available. The div is initially hidden so that it doesn't show
 			 when JavaScript is disabled.
 		-->
-		<a style="color:white" href="#" id="toggleVideoChatLink" onclick="return toggleVideoChatLink();">turn off</a>
+		<a style="color:white" href="#" id="toggleVideoChatLink" onclick="return site.toggleVideoChatLink();">turn off</a>
 		<div style="margin:10px">
 			<div id="flashContent">
 				<p>
@@ -177,13 +190,13 @@
 		<br />
 		<div style="margin:10px" id="userVideoID">v13</div>
 		<div>
-			Add user/group id <input type="text" id="add-user-videoid" defaultvalue="" /> <a style="color:white" href="#" onclick="return addUser();">ok</a>
+			Add user/group id <input type="text" id="add-user-videoid" defaultvalue="" /> <a style="color:white" href="#" onclick="return site.addUser();">ok</a>
 		</div>
 		<div>
-			Remove user id <input type="text" id="del-user-videoid" defaultvalue="" /> <a style="color:white" href="#" onclick="return delUser();">ok</a>
+			Remove user id <input type="text" id="del-user-videoid" defaultvalue="" /> <a style="color:white" href="#" onclick="return site.delUser();">ok</a>
 		</div>
 		<div>
-			Run command <input type="text" id="command-input" defaultvalue="" /> <a style="color:white" href="#" onclick="return runCommand();">ok</a>
+			Run command <input type="text" id="command-input" defaultvalue="" /> <a style="color:white" href="#" onclick="return site.runCommand();">ok</a>
 		</div>
 		<div style="margin:10px" id="selectedUserID"></div>
 		<div style="margin:10px" id="debugLog">Debug Log:<br /></div>

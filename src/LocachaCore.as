@@ -47,7 +47,7 @@ package
 				ExternalInterface.addCallback("delUser", delUser);  
 				ExternalInterface.addCallback("runCommand", runCommand);  
 				
-				ExternalInterface.call("flash_init");
+				ExternalInterface.call("site.flash_init");
 			}
 			
 			managePeersTimer = new Timer(1000);
@@ -272,7 +272,7 @@ package
 					localConnectState = ConnectState.CONNECTED;
 				
 					if (ExternalInterface.available) 
-						ExternalInterface.call("flash_videoUpdate", groupID);	
+						ExternalInterface.call("site.flash_videoUpdate", groupID);	
 				}		
 			}
 			catch(err:Error)
@@ -330,7 +330,7 @@ package
 				localConnectState = ConnectState.DISCONNECTED;
 				
 				if (ExternalInterface.available) 
-					ExternalInterface.call("flash_videoUpdate", "");
+					ExternalInterface.call("site.flash_videoUpdate", "");
 			}
 		}
 		

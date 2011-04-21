@@ -61,13 +61,20 @@ package
 			var client:Object = new Object();
 			client.audioSamples = function(samples:Array):void 
 			{						
-				timeout = 0; //psuedo ping
-				
-				for each(var sample:Number in samples)
-					audioSamples.push(sample);
+				try
+				{
+					timeout = 0; //psuedo ping
 					
-				while(audioSamples.length > 10)
-					audioSamples.pop();
+					for each(var sample:Number in samples)
+						audioSamples.push(sample);
+						
+					while(audioSamples.length > 10)
+						audioSamples.pop();
+				}
+				catch(exc:Error)
+				{
+					LocaDebug.logError("AUDIO SAMPLES EVENT MYSTERY ERROR", exc);
+				}
 			}
 			videoStream.client = client;
 			

@@ -9,7 +9,7 @@ package
 			trace(msg);
 		
 			if(ExternalInterface.available)
-				ExternalInterface.call("flash_log", msg);
+				ExternalInterface.call("site.flash_log", msg);
 		}
 		
 		public static function logError(func:String, err:Error):void

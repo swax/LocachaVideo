@@ -27,6 +27,9 @@ public class FlowLayout extends LayoutBase
             // ILayoutElement interface
             var element:ILayoutElement = layoutTarget.getElementAt(i);
 
+			if(!element.includeInLayout)
+				continue;
+			
             // Resize the element to its preferred size by passing
             // NaN for the width and height constraints
             element.setLayoutBoundsSize(NaN, NaN);
